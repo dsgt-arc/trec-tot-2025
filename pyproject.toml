@@ -1,15 +1,15 @@
 [project]
-name = "my-task-project"
+name = "trec-tot-2025"
 version = "0.1.1"
-authors = [{ name = "Anthony Miyaguchi", email = "acmiyaguchi@gatech.edu" }]
-description = "DS@GT CLEF project template"
+authors = [{ name = "Anthony Miyaguchi", email = "acmiyaguchi@gatech.edu" }, {name = "Wenxin Zhou", email = "wenxinmmb@gmail.com" }, { name = "Ritesh Mehta", email = "rmehta307@gatech.edu" }]
+description = "DS@GT TREC 2025 Tip-of-the-Tongue Track"
 readme = "README.md"
 requires-python = ">=3.8"
 dynamic = ["dependencies"]
 
 [project.urls]
-Homepage = "https://github.com/dsgt-kaggle-clef/clef-project-template"
-Issues = "https://github.com/dsgt-kaggle-clef/clef-project-template/issues"
+Homepage = "https://github.com/dsgt-kaggle-clef/trec-tot-2025"
+Issues = "https://github.com/dsgt-kaggle-clef/trec-tot-2025/issues"
 
 [build-system]
 requires = ["setuptools>=61.0"]
