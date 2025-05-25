@@ -65,6 +65,7 @@ if __name__ == '__main__':
     parser.add_argument("--no_train", action="store_true", default=False, help="if set, only does inference if")
     logging.basicConfig(level=logging.INFO,
                         format='[%(asctime)s] %(levelname)s - %(message)s')
+    log.setLevel(logging.INFO)
 
     args = parser.parse_args()
 

@@ -94,6 +94,7 @@ if __name__ == '__main__':
                         help="number of negatives to obtain")
 
     logging.basicConfig(level=logging.INFO)
+    log.setLevel(logging.INFO)
 
     args = parser.parse_args()
     tot.register(args.data_path)
