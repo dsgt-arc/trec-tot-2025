@@ -137,6 +137,12 @@ class IrEvaluator(evaluation.InformationRetrievalEvaluator):
 
         log.info("Information Retrieval Evaluation on " + self.name + " dataset" + out_txt)
 
+        # make this similar to https://github.com/UKPLab/sentence-transformers/blob/master/sentence_transformers/evaluation/InformationRetrievalEvaluator.py
+        # TODO: should be a better way to do inheritance
+        if self.score_functions is None:
+            self.score_functions = {model.similarity_fn_name: model.similarity}
+            self.score_function_names = [model.similarity_fn_name]
+            self._append_csv_headers(self.score_function_names)
         scores = self.compute_metrices(model, *args, **kwargs)
 
         # Write results to disc
@@ -172,11 +178,20 @@ class IrEvaluator(evaluation.InformationRetrievalEvaluator):
             fOut.write("\n")
             fOut.close()
 
+        if not self.primary_metric:
+            if self.main_score_function is None:
+                score_function = max(
+                    [(name, scores[name]["ndcg@k"][max(self.ndcg_at_k)]) for name in self.score_function_names],
+                    key=lambda x: x[1],
+                )[0]
+                self.primary_metric = f"{score_function}_ndcg@{max(self.ndcg_at_k)}"
+            else:
+                self.primary_metric = f"{self.main_score_function.value}_ndcg@{max(self.ndcg_at_k)}"
+
         if self.main_score_function is None:
             return max([scores[name]['ndcg@k'][max(self.ndcg_at_k)] for name in self.score_function_names])
         else:
             return scores[self.main_score_function]['ndcg@k'][max(self.ndcg_at_k)]
-
 
 def get_ir_evaluator(dataset: SBERTDataset, name,
                      mrr_at_k=None,
