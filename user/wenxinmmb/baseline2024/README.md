@@ -36,6 +36,7 @@ pip install pytrec_eval faiss-cpu
 pip install pyserini
 pip install datasets # needed to run train dense retriever
 pip install 'transformers[torch]'
+pip install pyarrow # needed to write parquet files
 
 ## checking the library versions
 $ pip list

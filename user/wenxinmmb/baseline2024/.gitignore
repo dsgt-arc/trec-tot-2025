@@ -5,4 +5,6 @@ anserini_docs
 # generated output
 runs
 bm25_negatives
-
+dense_embeddings
+distilbert_negatives
+dense_models

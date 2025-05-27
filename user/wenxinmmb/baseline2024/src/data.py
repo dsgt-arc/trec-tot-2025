@@ -5,9 +5,12 @@ import random
 import ir_datasets
 from sentence_transformers import InputExample, evaluation
 from torch.utils.data import Dataset
-from torch.utils.data.dataset import T_co
+from torch.utils.data.dataset import _T_co
 
 log = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO,
+                        format='[%(asctime)s] %(levelname)s - %(message)s')
+log.setLevel(logging.INFO)
 
 
 class SBERTDataset(Dataset):
@@ -72,7 +75,7 @@ class SBERTDataset(Dataset):
         else:
             raise NotImplementedError(self.out_type)
 
-    def __getitem__(self, index) -> T_co:
+    def __getitem__(self, index) -> _T_co:
         if self.out_type == "triplet":
             qid = self.idx_to_qid[index]
             query_text = self.queries[qid]
@@ -108,7 +111,7 @@ class SBERTDatasets(Dataset):
                 curr_idx += 1
         assert len(self) == curr_idx
 
-    def __getitem__(self, index) -> T_co:
+    def __getitem__(self, index) -> _T_co:
         dset, didx = self.idx_to_dset_idx[index]
         return dset[didx]
 
