@@ -70,6 +70,8 @@ DATA_PATH/
   | corpus.jsonl
 ```
 
+* TODO: make the current code compatible with 2025 data, and update the instructions
+
 Quick test to see if data is setup properly:
 ```
 python tot.py

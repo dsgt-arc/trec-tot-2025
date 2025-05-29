@@ -42,12 +42,13 @@ def embed_dataset(model: SentenceTransformer, dataset: ir_datasets.Dataset, devi
         """
         Save embeddings to disk in parquet format.
         """
+        # TODO: make parquet file self-contained, i.e., include doc_ids
         table = pa.Table.from_arrays([pa.array(embeddings)], names=["embeddings"])
         pq.write_table(table, os.path.join(directory, f"embeddings_{start_index:010}.parquet"))
 
     all_embeddings = []
     doc_length = len(documents)
-    doc_length = 10000 # FIJI: for testing a small set of record
+    # doc_length = 10000 # FIJI: for testing a small set of record
     for start_index in trange(0, doc_length, encode_batch_size, desc="Batches"):
         end_index = min(start_index + encode_batch_size, doc_length)
         sentences_batch = documents[start_index:end_index]
@@ -92,7 +93,7 @@ def create_faiss_index(embedding_size: int, directory: str, doc_ids: list):
         all_embeddings.extend(embeddings)
     num_embeddings = len(all_embeddings)
     all_embeddings = np.asarray(all_embeddings)
-    index = faiss.IndexFlatIP(embedding_size)
+    index = faiss.IndexFlatIP(embedding_size) # this uses inner product (dot product) for similarity
     indexwmap = faiss.IndexIDMap(index)
     indexwmap.add_with_ids(all_embeddings, np.arange(num_embeddings, dtype=np.int64))
 
