@@ -1,15 +1,7 @@
-# Benchmarks for TREC-ToT (2024)
+# Benchmarks for TREC-ToT
+Adapted from https://github.com/TREC-ToT/bench/tree/main/trec24
 
-The following benchmarks (& runs) are available. Results are for the dev2 set.:
-
-
-| Benchmark            | Runfiles | NDCG@10 | NDCG@1000 |  MRR@1000 |R@1000  |
-|----------------------|----------|----------|-----------------|-------|----|
-| [BM25](BM25.md) (k1=1, b=1.0) |  [runs](runs/bm25/) | 0.0657  |0.1033| 0.0590 | 0.3600|
-| [Dense Retrieval (SBERT)](DENSE.md) (DR) |  [runs](runs/DR/) | 0.1040 | 0.1665   | 0.0901  | 0.5600| 
-
- 
-## Enviorment Setup
+## Environment Setup
 
 BM25 search is implemented using Anserini, which needs Java 21 and python 3.10.
 To install Java 21, you can download the java jdk from the java offical website.
@@ -26,8 +18,8 @@ To setup python enviroment
 ```
 ## (optional) create virtual env
 pyenv install 3.10.12
-pyenv virtualenv 3.10.12 trec-tot-2024
-pyenv activate trec-tot-2024
+pyenv virtualenv 3.10.12 trec-tot-2025
+pyenv activate trec-tot-2025
 
 ## install requirements
 python -m pip install --upgrade pip
@@ -46,8 +38,8 @@ pyserini              0.44.0
 ...
 ``` 
 
-### 2024 Dataset
-1. Download 2024 dataset from https://trec-tot.github.io/guidelines-2024 (See Datasets section) or https://zenodo.org/records/11185090. (Note: the corpus is around 3GB, so it may take a while to download). Noted: the 2024 dataset corpus contains 3m wikipedia documents, while the 2025 dataset uses the whole 6m wikipedia english documents as the corpus.
+### 2024 Dataset (You can skip this to download 2025 dataset directly)
+1. Download 2024 dataset from https://trec-tot.github.io/guidelines-2024 (See Datasets section) or https://zenodo.org/records/11185090. (Noted: the corpus is around 3GB, so it may take a while to download. The 2024 dataset corpus contains 3m wikipedia documents, while the 2025 dataset uses the whole 6m wikipedia english documents as the corpus.)
 
 Command (if you prefer)
 ```
@@ -70,11 +62,9 @@ DATA_PATH/
   | corpus.jsonl
 ```
 
-* TODO: make the current code compatible with 2025 data, and update the instructions
-
-Quick test to see if data is setup properly:
+3. Quick test to see if data is setup properly and build the ir_datasets index for tot-2024 data:
 ```
-python tot.py
+python tot-24.py
 ```
 The command above should print the correct number of train/dev queries and the number of documents 
 in the corpus, along with example queries and documents. The output looks like
@@ -93,8 +83,59 @@ n queries: 150
 corpus size:  3185450
 ```
 
+### 2025 Dataset
+1. Download 2025 dataset from https://zenodo.org/records/15356599 
+
+2. set DATA_PATH to the folder which contains the uncompressed files s.t:
+
+```
+DATA_PATH/
+  | train-2025
+  | | - queries.jsonl
+  | |  - qrel.txt
+  | dev1-2025
+  | | - queries.jsonl
+  | | - qrel.txt
+  | dev2-2025
+  | | - queries.jsonl
+  | | - qrel.txt
+  | dev3-2025
+  | | - queries.jsonl
+  | | - qrel.txt
+  | corpus.jsonl
+  | offsets.jsonl (optional)
+```
+*Noted: You may need to rename the files and create the directory structure to be exactly the same as shown below.
+
+3. Run the following script build the ir_datasets index for tot-2025 data:
+```
+python tot-25.py
+```
+The command above should print the correct number of train/dev queries and the number of documents in the corpus, along with example queries and documents.
+It also creates a dataset under $homedir/.ir_datasets/trec-tot25 so that tot 2025 data can be used as part of the `ir_datasets` library.
+
+The output of the script looks like
+
+```
+trec-tot:dev2-2025
+n queries: 143
+
+trec-tot:train-2025
+n queries: 143
+
+trec-tot:dev3-2025
+n queries: 536
+
+error loading trec-tot:test-2025, skipping! <--- This is expected since the test data has not been released
+trec-tot:dev1-2025
+n queries: 142
+
+...
+corpus size:  6407814
+```
+
 ## Run sparse search (BM25) baseline
 Follow [BM25.md](BM25.md)
 
-## Run dense search (BM25) baseline
+## Run dense search (distilbert) baseline
 Follow [DENSE.md](DENSE.md)
