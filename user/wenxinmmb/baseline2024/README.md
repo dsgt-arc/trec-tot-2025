@@ -64,7 +64,7 @@ DATA_PATH/
 
 3. Quick test to see if data is setup properly and build the ir_datasets index for tot-2024 data:
 ```
-python tot-24.py
+python tot_24.py
 ```
 The command above should print the correct number of train/dev queries and the number of documents 
 in the corpus, along with example queries and documents. The output looks like
@@ -109,7 +109,7 @@ DATA_PATH/
 
 3. Run the following script build the ir_datasets index for tot-2025 data:
 ```
-python tot-25.py
+python tot_25.py
 ```
 The command above should print the correct number of train/dev queries and the number of documents in the corpus, along with example queries and documents.
 It also creates a dataset under $homedir/.ir_datasets/trec-tot25 so that tot 2025 data can be used as part of the `ir_datasets` library.

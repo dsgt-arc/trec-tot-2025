@@ -11,7 +11,6 @@ import pytrec_eval
 from pyserini.search.lucene import LuceneSearcher
 from tqdm import tqdm
 
-import tot
 from src import utils
 
 log = logging.getLogger(__name__)
@@ -19,17 +18,30 @@ log = logging.getLogger(__name__)
 METRICS = "recall_10,recall_1000,ndcg_cut_10,ndcg_cut_1000,recip_rank"
 
 
-def create_index(dataset, field_to_index, dest_folder, index):
+def create_index(dataset, field_to_index, dest_folder, index, data_version):
     log.info(f"creating files for indexing in {dest_folder}")
     docs_folder = os.path.join(dest_folder, "docs")
     os.makedirs(docs_folder, exist_ok=True)
     with open(os.path.join(docs_folder, "docs.jsonl"), "w") as writer:
+        doc_num = 0
         for raw_doc in dataset.docs_iter():
-            doc = {
-                "id": raw_doc.doc_id,
-                "contents": getattr(raw_doc, field_to_index)
-            }
+            if data_version == '2025':
+                doc = {
+                    "id": raw_doc.id,
+                    "contents": getattr(raw_doc, field_to_index)
+                }
+            else:
+                doc = {
+                    "id": raw_doc.doc_id,
+                    "contents": getattr(raw_doc, field_to_index)
+                }
+
             writer.write(json.dumps(doc) + "\n")
+            doc_num += 1
+            # FIJI: index the first 1 million documents only, since my laptop runs out of memory
+            # if doc_num >= 1000000:
+            #     log.info(f"Indexed {doc_num} documents, stopping indexing")
+            #     break
 
     # call pyserini indexer
     cmd = f"""python -m pyserini.index.lucene \
@@ -92,11 +104,20 @@ if __name__ == '__main__':
                         help="if provided, dumps negatives for use in training other models")
     parser.add_argument("--n_negatives", default=30, type=int,
                         help="number of negatives to obtain")
+    parser.add_argument("--data_version", default="2025",
+                        help="data version to use, e.g., 2024 or 2025")
 
     logging.basicConfig(level=logging.INFO)
     log.setLevel(logging.INFO)
 
     args = parser.parse_args()
+    if args.data_version == "2025":
+        import tot_25 as tot
+    elif args.data_version == "2024":
+        import tot_24 as tot
+    else:
+        raise ValueError(f"Unknown data version: {args.data_version}")
+
     tot.register(args.data_path)
     datasets = []
     for split in args.splits.split(","):
@@ -118,7 +139,8 @@ if __name__ == '__main__':
         create_index(dataset=datasets[0],
                      field_to_index=args.field,
                      dest_folder=docs_path,
-                     index=index)
+                     index=index,
+                     data_version=args.data_version)
 
     log.info(f"BM25 config: k1={args.param_k1}; b={args.param_b}")
 
