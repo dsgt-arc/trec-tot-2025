@@ -16,7 +16,7 @@ from qwikidata.linked_data_interface import get_entity_dict_from_api
 from thefuzz import fuzz, process
 from tqdm import tqdm
 
-import tot
+import tot # TODO: need to update to import tot_24 or tot_25
 from bm25 import METRICS
 from src import utils
 

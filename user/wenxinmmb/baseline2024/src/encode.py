@@ -9,6 +9,7 @@ from sentence_transformers.util import batch_to_device
 from tqdm import tqdm, trange
 
 from src import data
+from config import global_config
 import pyarrow as pa
 import pyarrow.parquet as pq
 import os
@@ -48,7 +49,9 @@ def embed_dataset(model: SentenceTransformer, dataset: ir_datasets.Dataset, devi
 
     all_embeddings = []
     doc_length = len(documents)
-    # doc_length = 10000 # FIJI: for testing a small set of record
+    if global_config.PROCESS_SUBSET:
+        doc_length = min(doc_length, global_config.SUBSET_SIZE)
+        log.info(f"Processing a subset of documents: {doc_length} out of {len(documents)}")
     for start_index in trange(0, doc_length, encode_batch_size, desc="Batches"):
         end_index = min(start_index + encode_batch_size, doc_length)
         sentences_batch = documents[start_index:end_index]

@@ -10,7 +10,6 @@ from torch import nn
 from torch.utils.data import DataLoader
 
 import bm25
-import tot
 from src import data, encode, utils
 
 log = logging.getLogger(__name__)
@@ -28,7 +27,7 @@ if __name__ == '__main__':
 
     parser.add_argument("--data_path", default="./datasets/TREC-ToT2024/", help="location to dataset")
 
-    parser.add_argument("--negatives_path", default="./bm25_negatives",
+    parser.add_argument("--negatives_path", default="./bm25_negatives/2025/",
                         help="path to folder containing negatives ")
 
     parser.add_argument("--model_or_checkpoint", type=str, required=True, help="hf checkpoint/ path to pt-model")
@@ -43,7 +42,7 @@ if __name__ == '__main__':
     parser.add_argument("--warmup_steps", type=int, default=0, help="warmup steps")
     parser.add_argument("--batch_size", type=int, default=24, help="batch size (training)")
     parser.add_argument("--encode_batch_size", type=int, default=128, help="batch size (inference)")
-    parser.add_argument("--save_embedding_record_size", type=int, default=1280, help="number of embeddings to save in a file")
+    parser.add_argument("--save_embedding_record_size", type=int, default=12800, help="number of embeddings to save in a file")
     parser.add_argument("--evaluation_steps", type=int, default=-1, help="steps before evaluation is run")
 
     parser.add_argument("--freeze_base_model", action="store_true", default=False,
@@ -65,6 +64,8 @@ if __name__ == '__main__':
     parser.add_argument("--encode_after_train", action="store_true", default=False, help="encode & run after training ")
     parser.add_argument("--encode_norm", action="store_true", default=False, help="normalize embeds")
     parser.add_argument("--no_train", action="store_true", default=False, help="if set, only does inference if")
+    parser.add_argument("--data_version", default="2025",
+                        help="data version to use, e.g., 2024 or 2025")
     logging.basicConfig(level=logging.INFO,
                         format='[%(asctime)s] %(levelname)s - %(message)s')
     log.setLevel(logging.INFO)
@@ -76,6 +77,16 @@ if __name__ == '__main__':
 
     if args.no_train:
         assert args.encode_after_train
+
+    data_splits = []
+    if args.data_version == "2025":
+        import tot_25 as tot
+        data_splits = ["train-2025", "dev1-2025", "dev2-2025", "dev3-2025"]
+    elif args.data_version == "2024":
+        import tot_24 as tot
+        data_splits = ["train-2024", "dev1-2024", "dev2-2024"]
+    else:
+        raise ValueError(f"Unknown data version: {args.data_version}")
 
     train_model = not args.no_train
 
@@ -100,7 +111,7 @@ if __name__ == '__main__':
 
     # load the negatives
     negatives = {}
-    for split in {"train-2024", "dev1-2024", "dev2-2024"}:
+    for split in data_splits:
         neg_name = split.split("-")[0]
         negatives[split] = utils.read_json(os.path.join(args.negatives_path, f"{neg_name}-negatives.json"))
 
@@ -109,7 +120,7 @@ if __name__ == '__main__':
     irds_splits = {}
     st_data = {}
     # splits
-    for split in {"train-2024", "dev1-2024", "dev2-2024"}:
+    for split in data_splits:
         irds_splits[split] = ir_datasets.load(f"trec-tot:{split}")
         log.info(f"loaded split {split}")
         st_data[split] = data.SBERTDataset(irds_splits[split],
@@ -119,8 +130,8 @@ if __name__ == '__main__':
 
     # create a new dataset with train + dev1
     train_data = data.SBERTDatasets(
-        [irds_splits["train-2024"], irds_splits["dev1-2024"]],
-        [negatives["train-2024"], negatives["dev1-2024"]],
+        [irds_splits[data_splits[0]], irds_splits[data_splits[1]]],
+        [negatives[data_splits[0]], negatives[data_splits[1]]],
         out_type=out_type,
         n_negatives=args.n_train_negatives
     )
@@ -167,7 +178,7 @@ if __name__ == '__main__':
         else:
             raise NotImplementedError(args.loss_fn)
 
-        val_evaluator = data.get_ir_evaluator(st_data["dev2-2024"], name=f"dev2",
+        val_evaluator = data.get_ir_evaluator(st_data[data_splits[2]], name=f"dev2",
                                               mrr_at_k=[1000],
                                               ndcg_at_k=[10, 1000],
                                               corpus_chunk_size=args.encode_batch_size)
@@ -200,7 +211,7 @@ if __name__ == '__main__':
         log.info("encoding corpus with model")
         embed_size = args.embed_size
         doc_ids = encode.embed_dataset(model,
-                                       dataset=irds_splits["train-2024"],
+                                       dataset=irds_splits[data_splits[0]],
                                        device=args.device,
                                        encode_batch_size=args.encode_batch_size,
                                        directory=args.embedding_dir,

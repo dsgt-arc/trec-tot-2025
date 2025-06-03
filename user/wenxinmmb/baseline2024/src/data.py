@@ -6,6 +6,7 @@ import ir_datasets
 from sentence_transformers import InputExample, evaluation
 from torch.utils.data import Dataset
 from torch.utils.data.dataset import _T_co
+from config import global_config
 
 log = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO,
@@ -124,8 +125,17 @@ def get_documents(dataset: ir_datasets.Dataset):
     doc_ids = []
 
     for doc in dataset.docs_iter():
-        doc_ids.append(doc.doc_id)
+        if 'doc_id' in doc:
+            # The 2024 dataset has 'doc_id' field
+            doc_ids.append(doc.doc_id)
+        else:
+            # The 2025 dataset has 'id' field
+            doc_ids.append(doc.id)
         documents.append(doc.text)
+        # TODO: loading 6 million documents at one time is memory intensive. Change this to do embedding in batches.
+        if global_config.PROCESS_SUBSET and len(documents) >= global_config.SUBSET_SIZE:
+            log.info(f"Processed {len(documents)} documents, stopping due to global config.")
+            break
 
     return doc_ids, documents
 

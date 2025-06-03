@@ -12,7 +12,7 @@ from pyserini.search.lucene import LuceneSearcher
 from tqdm import tqdm
 
 from src import utils
-
+from config import global_config
 log = logging.getLogger(__name__)
 
 METRICS = "recall_10,recall_1000,ndcg_cut_10,ndcg_cut_1000,recip_rank"
@@ -38,10 +38,9 @@ def create_index(dataset, field_to_index, dest_folder, index, data_version):
 
             writer.write(json.dumps(doc) + "\n")
             doc_num += 1
-            # FIJI: index the first 1 million documents only, since my laptop runs out of memory
-            # if doc_num >= 1000000:
-            #     log.info(f"Indexed {doc_num} documents, stopping indexing")
-            #     break
+            if global_config.PROCESS_SUBSET and doc_num >= global_config.SUBSET_SIZE:
+                log.info(f"Processed {doc_num} documents, stopping indexing due to global config")
+                break
 
     # call pyserini indexer
     cmd = f"""python -m pyserini.index.lucene \
