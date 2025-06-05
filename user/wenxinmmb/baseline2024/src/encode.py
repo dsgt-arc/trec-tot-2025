@@ -39,13 +39,16 @@ def embed_dataset(model: SentenceTransformer, dataset: ir_datasets.Dataset, devi
         return doc_ids
 
 
-    def _save_embeddings_to_disk(embeddings, start_index):
+    def _save_embeddings_to_disk(embeddings, end_index):
         """
         Save embeddings to disk in parquet format.
         """
-        # TODO: make parquet file self-contained, i.e., include doc_ids
-        table = pa.Table.from_arrays([pa.array(embeddings)], names=["embeddings"])
-        pq.write_table(table, os.path.join(directory, f"embeddings_{start_index:010}.parquet"))
+        embed_num = len(embeddings)
+        current_doc_ids = doc_ids[end_index - embed_num: end_index]
+        table = pa.Table.from_arrays([pa.array(embeddings), pa.array(current_doc_ids)],
+                                     names=["embeddings", "doc_ids"])
+        pq.write_table(table, os.path.join(directory, f"embeddings_{end_index:010}.parquet"))
+
 
     all_embeddings = []
     doc_length = len(documents)
@@ -70,8 +73,8 @@ def embed_dataset(model: SentenceTransformer, dataset: ir_datasets.Dataset, devi
 
         if (end_index) % max_embeddings_per_file == 0:
             assert(end_index != 0)
-            log.info(f"Processed {end_index} documents, saving embeddings from {start_index} to {end_index} to disk")    
-            _save_embeddings_to_disk(all_embeddings, start_index+encode_batch_size)
+            log.info(f"Processed {end_index} documents, saving embeddings from {end_index - len(all_embeddings)} to {end_index} to disk")    
+            _save_embeddings_to_disk(all_embeddings, end_index)
             all_embeddings = []
 
     # Save any remaining embeddings
@@ -126,6 +129,9 @@ def create_run_faiss(model: SentenceTransformer, dataset: ir_datasets.Dataset, d
                                         convert_to_numpy=True, device=device)
 
     os.environ["OMP_NUM_THREADS"] = "1" # FIXME: set OMP thread to 1, otherwise FAISS CPU search hit memory leak on mac os
+
+    # TODO: extract the doc_id corresponds to the document from the search results
+    # so that we can avoid idx_to_docid translation below
     scores, raw_doc_ids = index.search(query_embeddings, k=top_k)
     run = {}
 
