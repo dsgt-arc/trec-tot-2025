@@ -29,7 +29,7 @@ pip install pyserini
 pip install datasets # needed to run train dense retriever
 pip install 'transformers[torch]'
 pip install pyarrow # needed to write parquet files
-
+pip install datasets # needed for dense search on huggingface datasets
 ## checking the library versions
 $ pip list
 ...
