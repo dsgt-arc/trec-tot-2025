@@ -1,4 +1,4 @@
-from huggingface_hub import hf_hub_download
+# from huggingface_hub import hf_hub_download
 # hf_hub_download(repo_id="Upstash/wikipedia-2024-06-bge-m3", repo_type='dataset',
 #                 filename="data/en/*.parquet",
 #                 local_dir="/Users/wenxin/tot/tot_data/upstash-embed")

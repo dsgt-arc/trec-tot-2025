@@ -9,7 +9,7 @@ import torch
 import ir_datasets
 import os
 import polars as pl
-from itertools import islice
+import glob
 
 log = logging.getLogger(__name__)
 
@@ -20,8 +20,9 @@ if __name__ == '__main__':
     parser.add_argument("--data_version", default="2025",
                         help="data version to use, e.g., 2024 or 2025")
     parser.add_argument("--data_path", default="./datasets/TREC-ToT2024/", help="location to dataset")
-    parser.add_argument("--polar_dir", default="./polar_dir/embed_1", help="location to store embeddings")
-    
+    parser.add_argument("--embed_src_dir", default="/Users/wenxin/tot/tot_data/upstash-embed/data/en/",
+                        help="location that stores the embedding parquet files")
+    # setting log levels
     logging.basicConfig(level=logging.INFO)
     log.setLevel(logging.INFO)
 
@@ -36,12 +37,6 @@ if __name__ == '__main__':
         device = "cpu"
     log.info(f"Using device: {device}")
 
-    # The cohere model isn't open-sourced :(
-    # transformer = SentenceTransformer(
-    #     "Cohere/Cohere-embed-multilingual-v3.0", 
-    #     device=device
-    # )
-
     args = parser.parse_args()
     if args.data_version == "2025":
         import tot_25 as tot
@@ -49,10 +44,7 @@ if __name__ == '__main__':
         import tot_24 as tot
     else:
         raise ValueError(f"Unknown data version: {args.data_version}")
-
     tot.register(args.data_path)
-
-    os.makedirs(args.polar_dir, exist_ok=True)
 
     chunk_size = 100000 # number of embeddings to process at a time
     total_records = chunk_size*10  # max = 47_018_430
@@ -61,79 +53,110 @@ if __name__ == '__main__':
     chunk_index = 0
 
     # Initialize FAISS index
-    # embedding_size = 1024
-    # index = faiss.IndexFlatIP(embedding_size) # this uses inner product (dot product) for similarity
-    # indexwmap = faiss.IndexIDMap(index)
+    embedding_size = 1024
+    index = faiss.IndexFlatIP(embedding_size) # this uses inner product (dot product) for similarity
+    indexwmap = faiss.IndexIDMap(index)
 
-    # download wikipedia embeddings
-    # dataset = load_dataset("Upstash/wikipedia-2024-06-bge-m3", "en", split="train")
+    # There are 470 parquet files in total. There are 100K records per file, expect for the last file
+    # When do we hit RAM limit in mac with 32GB RAM? paused at 64, 128 and start using swap storage at 64th. 
+    cursor = 0
+    chunk_file_number = 8 # 32
+    max_file_number = 471  # total number of parquet files
 
-    # There are 470 parquet files in total, looks like 100K records per file
-    parquet_directory= '/Users/wenxin/tot/tot_data/upstash-embed/*.parquet'
-    df = pl.read_parquet(parquet_directory)
-    # print df stats
-    log.info(f"Loaded dataset with {df.shape[0]} records.")
-    # print available fields in the dataframe
-    log.info(f"Available fields: {df.columns}")
-    # print first 5 records
-    log.info(f"First 5 records:\n{df.head(5)}")
-    
-    for row, data in enumerate(dataset):
-        # Extract metadata and embedding
-        metadata_entry = {
-            "int_id": row,
-            "title": data["title"],
-            "url": data["url"],
-            "text": data["text"],
-            "orig_id": data["id"],
-        }
-        embedding = np.asarray(data["embedding"], dtype=np.float32)
+    # TODO: add another for-loop to iterate over all files
+    # for num in range(0, chunk_file_number):
+    #     df = pl.read_parquet(f'{args.embed_src_dir}/{num:03d}.parquet')
+    #     # print df stats
+    #     log.info(f"Loaded dataset index {num} with {df.shape[0]} records.")
+    #     # df.columns is ['id', 'url', 'title', 'text', 'embedding']
+    #     # log.info(f"First record:\n{df.head(1)}")
+    #     # adding df to indexwmap
+    #     ids = np.arange(cursor, cursor + df.shape[0], dtype=np.int64)
+    #     embeddings = np.vstack(df['embedding'].to_numpy())
+    #     indexwmap.add_with_ids(embeddings, ids)
+    #     cursor += df.shape[0]
+    #     log.info(f"Added {df.shape[0]} records to FAISS index, total records in index: {cursor}")
 
-        # Append to chunk lists
-        chunk_data.append(metadata_entry)
-        chunk_embeddings.append(embedding)
+    # Read all files into a single DataFrame
+    directory = args.embed_src_dir
+    file_pattern = f"{directory}/0[0-3][0-9].parquet"  # Matches 000.parquet to 032.parquet
+    file_paths = glob.glob(file_pattern)
+    df = pl.read_parquet(file_paths)
+    ids = np.arange(0, df.shape[0], dtype=np.int64)
+    # setup ids as the df['id'] column. while ids are string, process it so that the string is split by _ and use the number before "_"
+    # ids = df['id'].apply(lambda x: int(x.split('_')[0])).to_numpy(dtype=np.int64)
+    embeddings = np.vstack(df['embedding'].to_numpy())
+    indexwmap.add_with_ids(embeddings, ids)
+    log.info(f"Added {df.shape[0]} records to FAISS index")
 
-        # Write chunk to Parquet when chunk_size is reached
-        if len(chunk_data) >= chunk_size:
-            # Write metadata chunk to Parquet
-            metadata_df = pl.DataFrame(chunk_data)
-            metadata_file = os.path.join(args.polar_dir, f"metadata_chunk_{chunk_index}.parquet")
-            metadata_df.write_parquet(metadata_file)
+    # load encoder and calculate query embeddings
+    transformer = SentenceTransformer(
+        "BAAI/bge-m3",
+        device=device,
+        revision="babcf60cae0a1f438d7ade582983d4ba462303c2",
+    )
 
-            # Write embeddings chunk to a separate file (optional)
-            embeddings_file = os.path.join(args.polar_dir, f"embeddings_chunk_{chunk_index}.npy")
-            np.save(embeddings_file, np.array(chunk_embeddings))
-
-            print(f"Written chunk {chunk_index} to disk.")
+    encode_batch_size = 8
+    queries = []
+    dataset = ir_datasets.load("trec-tot:train-2024")
+    for q in dataset.queries_iter():
+        # log first a few characters of the query
+        log.info('Processing query: %s', q.query[:50])
+        queries.append(q.query)
+        if len(queries) >= encode_batch_size:
+            query_vectors = transformer.encode(
+                sentences=queries,
+                show_progress_bar=True,
+                normalize_embeddings=True,
+            )
+            scores, raw_doc_ids = index.search(query_vectors, k=10)
+            log.info(f"Score: \n{scores}, Doc ID: \n{raw_doc_ids}")
             
-            # Reset chunk lists and increment chunk index
-            chunk_data = []
-            chunk_embeddings = []
-            chunk_index += 1
-        
-    # Disable the following
-    # all_embeddings = np.asarray(all_embeddings) # embedding is float64
-    # indexwmap.add_with_ids(all_embeddings, np.arange(num_embeddings, dtype=np.int64))
+            # write the results to a file
+            # with open('search_results.json', 'a') as f:
+            #     for qid, sc, rdoc_ids in zip([q.query_id]*len(scores), scores, raw_doc_ids):
+            #         result = {
+            #             "query_id": qid,
+            #             "scores": sc.tolist(),
+            #             "doc_ids": rdoc_ids.tolist()
+            #         }
+            #         json.dump(result, f)
+            #         f.write('\n')
+            # break
 
-    # # load encoder and calculate query embeddings
-    # transformer = SentenceTransformer(
-    #     "BAAI/bge-m3",
-    #     device=device,
-    #     revision="babcf60cae0a1f438d7ade582983d4ba462303c2",
-    # )
+    print(raw_doc_ids.shape)
 
-    # dataset = ir_datasets.load("trec-tot:train-2024")
-    # for q in dataset.queries_iter():
-    #     log.info('query: %s', q)
-    #     query_vector = transformer.encode(
-    #         sentences=[q.query],
-    #         show_progress_bar=False,
-    #         normalize_embeddings=True,
-    #     )
-    #     scores, raw_doc_ids = index.search(query_vector, k=1)
-    #     log.info(f"Query: {q.query}, Score: {scores[0][0]}, Doc ID: {raw_doc_ids[0][0]}")
-    #     break
+    def get_doc_id(id, df):
+        assert id >= 0, "Doc ID should be non-negative"
+        # file_number = id // 100000  # TODO: do not hardcode 100K
+        # record_index = id % 100000
+        # df_sub = pl.read_parquet(f'{embed_src_dir}/{file_number:03d}.parquet')
+        # df_entry = df_sub.slice(record_index, 1).select(["id", "title", "url"]).to_dicts()[0]
+        df_entry = df.slice(id, 1).select(["id", "title", "url"]).to_dicts()[0]
+        log.info(f"search result id {id} corresponds to doc_id {df_entry['id']}, title {df_entry['title']}, url {df_entry['url']}")
+        return str(df_entry['id'])
 
+    # Translate raw_doc_ids to df_entry['id'] as strings
+    translated_ids = [
+        [get_doc_id(id, df) for id in id_rows]
+        for id_rows in raw_doc_ids
+    ]
+
+    # Optional: Log the translated IDs
+    log.info(f"Translated IDs: {translated_ids}")
+
+    # given the raw doc_id, reverse the mapping to get the actual doc_id and title
+    # calculate the offset of the parquet file, and read the correponding parquet file and the record
+    # for id_rows in raw_doc_ids:
+    #     for id in id_rows:
+    #         assert id >= 0, "Doc ID should be non-negative"
+    #         file_number = id // 100000 # TODO: do not hardcode 100K
+    #         record_index = id % 100000
+    #         log.info(f"Record index: {record_index}, File number: {file_number}")
+    #         df_sub = pl.read_parquet(f'{args.embed_src_dir}/{file_number:03d}.parquet')
+    #         # get the record_index th entry in the dataframe
+    #         df_entry = df_sub.slice(record_index, 1).select(["id", "title", "url"]).to_dicts()[0]
+    #         log.info(f"search result id {id} corresponds to doc_id {df_entry['id']}, title {df_entry['title']}, url {df_entry['url']}")
     # for qrel in dataset.qrels_iter():
     #     log.info('qrel: %s', qrel)
     #     break
