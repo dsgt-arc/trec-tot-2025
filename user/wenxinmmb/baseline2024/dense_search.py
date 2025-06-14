@@ -60,7 +60,7 @@ if __name__ == '__main__':
     # There are 470 parquet files in total. There are 100K records per file, expect for the last file
     # When do we hit RAM limit in mac with 32GB RAM? paused at 64, 128 and start using swap storage at 64th. 
     cursor = 0
-    chunk_file_number = 8 # 32
+    chunk_file_number = 8  # 32
     max_file_number = 471  # total number of parquet files
 
     # TODO: add another for-loop to iterate over all files
@@ -79,12 +79,18 @@ if __name__ == '__main__':
 
     # Read all files into a single DataFrame
     directory = args.embed_src_dir
-    file_pattern = f"{directory}/0[0-3][0-9].parquet"  # Matches 000.parquet to 032.parquet
+    # file_pattern = f"{directory}/0[0-3][0-9].parquet"  # Matches 000.parquet to 032.parquet
+    file_pattern = f"{directory}/00[0-9].parquet"  # Matches 000.parquet to 032.parquet
     file_paths = glob.glob(file_pattern)
     df = pl.read_parquet(file_paths)
-    ids = np.arange(0, df.shape[0], dtype=np.int64)
+    # ids = np.arange(0, df.shape[0], dtype=np.int64)
     # setup ids as the df['id'] column. while ids are string, process it so that the string is split by _ and use the number before "_"
     # ids = df['id'].apply(lambda x: int(x.split('_')[0])).to_numpy(dtype=np.int64)
+    df = df.with_columns(
+        pl.col('id').str.split('_').list.get(0).cast(pl.Int64).alias('numeric_id')
+    )
+    ids = df['numeric_id'].to_numpy()
+
     embeddings = np.vstack(df['embedding'].to_numpy())
     indexwmap.add_with_ids(embeddings, ids)
     log.info(f"Added {df.shape[0]} records to FAISS index")
@@ -99,9 +105,13 @@ if __name__ == '__main__':
     encode_batch_size = 8
     queries = []
     dataset = ir_datasets.load("trec-tot:train-2024")
+    
+    top_k = 10  # number of top results to retrieve
+    all_scores = np.empty((0, top_k))
+    all_raw_doc_ids = np.empty((0, top_k), dtype=int)
     for q in dataset.queries_iter():
         # log first a few characters of the query
-        log.info('Processing query: %s', q.query[:50])
+        log.info('Processing query: %s %s', q.query_id, q.query[:150])
         queries.append(q.query)
         if len(queries) >= encode_batch_size:
             query_vectors = transformer.encode(
@@ -111,20 +121,40 @@ if __name__ == '__main__':
             )
             scores, raw_doc_ids = index.search(query_vectors, k=10)
             log.info(f"Score: \n{scores}, Doc ID: \n{raw_doc_ids}")
-            
-            # write the results to a file
-            # with open('search_results.json', 'a') as f:
-            #     for qid, sc, rdoc_ids in zip([q.query_id]*len(scores), scores, raw_doc_ids):
-            #         result = {
-            #             "query_id": qid,
-            #             "scores": sc.tolist(),
-            #             "doc_ids": rdoc_ids.tolist()
-            #         }
-            #         json.dump(result, f)
-            #         f.write('\n')
-            # break
+            # Aggregate scores and raw_doc_ids
+            all_scores = np.vstack((all_scores, scores))
+            all_raw_doc_ids = np.vstack((all_raw_doc_ids, raw_doc_ids))
+            queries = []  # reset queries after processing batch
 
+    if len(queries) > 0:
+        # TODO: refactoring
+        query_vectors = transformer.encode(
+            sentences=queries,
+            show_progress_bar=True,
+            normalize_embeddings=True,
+        )
+        scores, raw_doc_ids = index.search(query_vectors, k=10)
+        log.info(f"Score: \n{scores}, Doc ID: \n{raw_doc_ids}")
+        # Aggregate scores and raw_doc_ids
+        all_scores = np.vstack((all_scores, scores))
+        all_raw_doc_ids = np.vstack((all_raw_doc_ids, raw_doc_ids))
+
+    # print the shape of the all_scores and raw_doc_ids
+    log.info(f"Total queries processed: scores shape -- {all_scores.shape}, raw_doc_ids shape -- {all_raw_doc_ids.shape}")
+    # write the results to a file
+    with open('search_results.json', 'a') as f:
+        for qid, sc, rdoc_ids in zip([q.query_id]*len(scores), scores, raw_doc_ids):
+            result = {
+                "query_id": qid,
+                "scores": sc.tolist(),
+                "doc_ids": rdoc_ids.tolist()
+            }
+            json.dump(result, f)
+            f.write('\n')
+            
     print(raw_doc_ids.shape)
+    
+
 
     def get_doc_id(id, df):
         assert id >= 0, "Doc ID should be non-negative"
@@ -139,7 +169,7 @@ if __name__ == '__main__':
     # Translate raw_doc_ids to df_entry['id'] as strings
     translated_ids = [
         [get_doc_id(id, df) for id in id_rows]
-        for id_rows in raw_doc_ids
+        for id_rows in all_raw_doc_ids
     ]
 
     # Optional: Log the translated IDs
