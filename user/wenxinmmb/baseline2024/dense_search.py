@@ -39,9 +39,9 @@ def do_range_search(fl_pattern, res_name):
 
         encode_batch_size = 8
         queries = []
-        dataset = ir_datasets.load("trec-tot:train-2024")
+        dataset = ir_datasets.load("trec-tot:train-2025")
         
-        top_k = 10  # number of top results to retrieve
+        top_k = 1000  # number of top results to retrieve
         all_scores = np.empty((0, top_k))
         all_raw_doc_ids = np.empty((0, top_k), dtype=int)
         qids = []
@@ -135,12 +135,18 @@ if __name__ == '__main__':
         raise ValueError(f"Unknown data version: {args.data_version}")
     tot.register(args.data_path)
 
-    # do_range_search('0[6-9][0-9].parquet', 'search_results_060_099.json')
-    # do_range_search('1[0-5][0-9].parquet', 'search_results_100_159.json')
-    # do_range_search('1[6-9][0-9].parquet', 'search_results_160_199.json')
-    do_range_search('2[0-5][0-9].parquet', 'search_results_200_259.json')
-    do_range_search('2[6-9][0-9].parquet', 'search_results_260_299.json')
-    do_range_search('3[0-5][0-9].parquet', 'search_results_300_359.json')
-    do_range_search('3[6-9][0-9].parquet', 'search_results_360_399.json')
-    do_range_search('4[0-5][0-9].parquet', 'search_results_400_459.json')
-    do_range_search('4[6-9][0-9].parquet', 'search_results_460_499.json')
+    do_range_search('0[4-5][0-9].parquet', 'runs/search_result/train/search_results_040_059.json')
+    do_range_search('0[0-3][0-9].parquet', 'runs/search_result/train/search_results_000_039.json')
+    do_range_search('0[6-9][0-9].parquet', 'runs/search_result/train/search_results_060_099.json')
+    do_range_search('1[0-3][0-9].parquet', 'runs/search_result/train/search_results_100_139.json')
+    do_range_search('1[4-5][0-9].parquet', 'runs/search_result/train/search_results_140_159.json')
+    do_range_search('1[6-9][0-9].parquet', 'runs/search_result/train/search_results_160_199.json')
+    do_range_search('2[0-3][0-9].parquet', 'runs/search_result/train/search_results_200_239.json')
+    do_range_search('2[4-5][0-9].parquet', 'runs/search_result/train/search_results_240_259.json')
+    do_range_search('2[6-9][0-9].parquet', 'runs/search_result/train/search_results_260_299.json')
+    do_range_search('3[0-3][0-9].parquet', 'runs/search_result/train/search_results_300_339.json')
+    do_range_search('3[4-5][0-9].parquet', 'runs/search_result/train/search_results_340_359.json')
+    do_range_search('3[6-9][0-9].parquet', 'runs/search_result/train/search_results_360_399.json')
+    do_range_search('4[0-3][0-9].parquet', 'runs/search_result/train/search_results_400_439.json')
+    do_range_search('4[4-5][0-9].parquet', 'runs/search_result/train/search_results_440_459.json')
+    do_range_search('4[6-9][0-9].parquet', 'runs/search_result/train/search_results_460_499.json')

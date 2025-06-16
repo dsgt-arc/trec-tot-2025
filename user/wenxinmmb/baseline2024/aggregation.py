@@ -2,7 +2,7 @@ import json
 from glob import glob
 
 # Step 1: Read all JSON files
-file_paths = glob("search_results_*.json")
+file_paths = glob("runs/search_result/train/search_results_*.json")
 aggregated_data = {}
 
 for file_path in file_paths:
@@ -33,6 +33,8 @@ for query_id, data in aggregated_data.items():
             seen_ids.add(first_number)
             doc_ids.append(first_number)
             doc_scores.append(sorted_scores[sorted_translated_doc_ids.index(translated_id)])
+        if len(doc_ids) >= 1000:
+            break
     
     sorted_results[query_id] = {
         "scores": list(sorted_scores),
@@ -43,12 +45,12 @@ for query_id, data in aggregated_data.items():
     }
 
 # Step 3: Write the aggregated and sorted results to a new JSON file
-with open("aggregated_results.json", "w") as output_file:
+with open("runs/search_result/train/aggregated_results.json", "w") as output_file:
     for query_id, result in sorted_results.items():
         output_file.write(json.dumps({"query_id": query_id, **result}) + "\n")
 
 # Step 4: Generate the qrel file
-with open("bge_2024_train_1.txt", "w") as run_file:
+with open("runs/search_result/train/bge_2025_train.txt", "w") as run_file:
     for query_id, result in sorted_results.items():
         for i, doc_id in enumerate(result["doc_ids"]):
             score = result["doc_scores"][i]
