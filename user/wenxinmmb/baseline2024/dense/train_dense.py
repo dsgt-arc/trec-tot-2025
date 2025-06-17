@@ -9,6 +9,9 @@ from sentence_transformers.losses import TripletDistanceMetric, SiameseDistanceM
 from torch import nn
 from torch.utils.data import DataLoader
 
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import bm25
 from src import data, encode, utils
 
@@ -27,8 +30,8 @@ if __name__ == '__main__':
 
     parser.add_argument("--data_path", default="./datasets/TREC-ToT2024/", help="location to dataset")
 
-    parser.add_argument("--negatives_path", default="./bm25_negatives/2025/",
-                        help="path to folder containing negatives ")
+    parser.add_argument("--negatives_path", default=None,
+                        help="path to folder containing negatives. For example, ../bm25_negatives/2025/")
 
     parser.add_argument("--model_or_checkpoint", type=str, required=True, help="hf checkpoint/ path to pt-model")
     parser.add_argument("--embed_size", required=True, type=int, help="hidden size of the model")
@@ -50,7 +53,7 @@ if __name__ == '__main__':
     parser.add_argument("--metrics", required=False, default=bm25.METRICS, help="csv - metrics to evaluate")
     parser.add_argument("--n_hits", default=1000, type=int, help="number of hits to retrieve")
 
-    parser.add_argument("--device", type=str, default="cuda", help="device to train /evaluate model on")
+    parser.add_argument("--device", type=str, default=None, help="device to train /evaluate model on. e.g 'cuda'")
 
     parser.add_argument("--model_dir", type=str, help="folder to store model & runs", required=True)
     parser.add_argument("--embedding_dir", type=str, help="folder to store embeddings",default="./dense_output/run1",)
@@ -99,6 +102,12 @@ if __name__ == '__main__':
     model_dir = args.model_dir
     os.makedirs(model_dir, exist_ok=True)
 
+    if args.device is None:
+        device = utils.get_device()
+    else:
+        device = args.device
+    log.info(f"Using device: {device}")
+
     if args.freeze_base_model:
         base_model = SentenceTransformer(args.model_or_checkpoint, device=args.device)
         for param in base_model.parameters():
@@ -111,9 +120,14 @@ if __name__ == '__main__':
 
     # load the negatives
     negatives = {}
+    n_train_negatives = 0
     for split in data_splits:
         neg_name = split.split("-")[0]
-        negatives[split] = utils.read_json(os.path.join(args.negatives_path, f"{neg_name}-negatives.json"))
+        if args.negatives_path is None:
+            negatives[split] = {}
+        else:
+            negatives[split] = utils.read_json(os.path.join(args.negatives_path, f"{neg_name}-negatives.json"))
+            n_train_negatives = args.n_train_negatives
 
     out_type = OUT_TYPES[args.loss_fn]
     log.info(f"output type for datasets: {out_type}, loss={args.loss_fn}")
@@ -126,14 +140,14 @@ if __name__ == '__main__':
         st_data[split] = data.SBERTDataset(irds_splits[split],
                                            negatives=negatives[split],
                                            out_type=out_type,
-                                           n_negatives=args.n_train_negatives)
+                                           n_negatives=n_train_negatives)
 
     # create a new dataset with train + dev1
     train_data = data.SBERTDatasets(
         [irds_splits[data_splits[0]], irds_splits[data_splits[1]]],
         [negatives[data_splits[0]], negatives[data_splits[1]]],
         out_type=out_type,
-        n_negatives=args.n_train_negatives
+        n_negatives=n_train_negatives
     )
 
     if train_model:

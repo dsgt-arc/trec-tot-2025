@@ -1,7 +1,23 @@
-# Dense Retrieval Baseline
+# 1. Similarity search with precomputed BGE-M3 embeddings
+1. Download the embedding parquet files -- Upstash/wikipedia-2024-06-bge-m3, by running the following script
+```
+$ python hf_download.py --local_dir (your_local_directory_to_store_data)
+```
+
+2. Run the dense_search_bge.py script to generate search results. This will output top_k for every partition.
+```
+$ python dense_search_bge.py --data_version 2025 --data_path $DATA_PATH
+```
+
+3. Run aggregation.py script to aggregate the results and generate run file.
+```
+$ python aggregation.py
+```
+
+# 2. Dense Retrieval Baseline
 
 This readme contains instructions for reproducing a Dense Retrieval baseline run using [Sentence Transformers](https://www.sbert.net/)
-for the TREC track on tip-of-the-tongue (ToT)  retrieval. You can view [Guidelines](https://trec-tot.github.io/guidelines) for more details..
+for the TREC track on tip-of-the-tongue (ToT)  retrieval. 
 
 ## Embedding and perfoming dense retrieval using distilBERT
 Command to embed the 2025 dataset with baseline distilbert model,
@@ -13,7 +29,6 @@ python train_dense.py \
 --embedding_dir dense_embeddings/2025/distilbert_inf \
 --negatives_out distilbert_negatives/2025/distilbert_inf \
 --data_path $DATA_PATH \
---device cuda \
 --loss_fn triplet \
 --loss_distance cosine \
 --encode_norm \
@@ -24,9 +39,9 @@ python train_dense.py \
 --no_train
 ```
 ------
-## The information below are not revised from original repository. It may not be compatible with the current code. Kept for reference only.
+## The information below are out of date. They are from the original repository. It may not be compatible with the current code. Kept for reference only.
 
-## Finetune distil bert
+## Finetune distil bert with hard negatives
 Note that the script below trains on *both* the dev1 and train splits. 
 ```
 # step 1: train a dense retrieval model (baseline-distilbert) and generate negatives

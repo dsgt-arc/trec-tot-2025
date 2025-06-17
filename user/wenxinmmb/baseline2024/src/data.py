@@ -59,10 +59,11 @@ class SBERTDataset(Dataset):
             self.corpus[qrel.doc_id] = pos_doc
 
             self.neg[qrel.query_id] = []
-            for neg_docid in negatives[qrel.query_id][:self.n_negatives]:
-                neg_doc = docstore.get(neg_docid).text
-                self.corpus[neg_docid] = neg_doc
-                self.neg[qrel.query_id].append(neg_doc)
+            if negatives:
+                for neg_docid in negatives[qrel.query_id][:self.n_negatives]:
+                    neg_doc = docstore.get(neg_docid).text
+                    self.corpus[neg_docid] = neg_doc
+                    self.neg[qrel.query_id].append(neg_doc)
 
         if self.out_type == "triplet":
             self.idx_to_qid = {i: qid for (i, qid) in enumerate(self.qid_to_query)}
@@ -125,7 +126,7 @@ def get_documents(dataset: ir_datasets.Dataset):
     doc_ids = []
 
     for doc in dataset.docs_iter():
-        if 'doc_id' in doc:
+        if hasattr(doc, 'doc_id'): 
             # The 2024 dataset has 'doc_id' field
             doc_ids.append(doc.doc_id)
         else:

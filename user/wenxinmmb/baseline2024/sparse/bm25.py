@@ -11,6 +11,9 @@ import pytrec_eval
 from pyserini.search.lucene import LuceneSearcher
 from tqdm import tqdm
 
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from src import utils
 from config import global_config
 log = logging.getLogger(__name__)

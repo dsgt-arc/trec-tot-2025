@@ -136,7 +136,7 @@ corpus size:  6407814
 ```
 
 ## Run sparse search (BM25) baseline
-Follow [BM25.md](BM25.md)
+Follow [sparse/BM25.md](sparse/BM25.md)
 
 ## Run dense search (distilbert) baseline
-Follow [DENSE.md](DENSE.md)
+Follow [dense/DENSE.md](dense/DENSE.md)

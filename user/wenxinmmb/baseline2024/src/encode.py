@@ -128,7 +128,7 @@ def create_run_faiss(model: SentenceTransformer, dataset: ir_datasets.Dataset, d
         query_embeddings = model.encode(queries, batch_size=eval_batch_size, show_progress_bar=True,
                                         convert_to_numpy=True, device=device)
 
-    os.environ["OMP_NUM_THREADS"] = "1" # FIXME: set OMP thread to 1, otherwise FAISS CPU search hit memory leak on mac os
+    # os.environ["OMP_NUM_THREADS"] = "1" # FIXME: set OMP thread to 1, otherwise FAISS CPU search hit memory leak on mac os
 
     # TODO: extract the doc_id corresponds to the document from the search results
     # so that we can avoid idx_to_docid translation below

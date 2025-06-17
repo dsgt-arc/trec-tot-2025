@@ -109,3 +109,12 @@ def set_seed(seed, torch_deterministic=True, torch_benchmark=True):
     torch.backends.cudnn.benchmark = torch_benchmark
     np.random.seed(seed)
     random.seed(seed)
+
+def get_device():
+    if torch.cuda.is_available():
+        device = "cuda"
+    elif torch.backends.mps.is_available():
+        device = "mps"
+    else:
+        device = "cpu"
+    return device
