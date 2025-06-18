@@ -1,12 +1,16 @@
 # 1. Similarity search with precomputed BGE-M3 embeddings
 1. Download the embedding parquet files -- Upstash/wikipedia-2024-06-bge-m3, by running the following script
 ```
-$ python hf_download.py --local_dir (your_local_directory_to_store_data)
+EMBEDDING_PATH should be set to the directory where you want to store the downloaded embeddings.
+
+$ python hf_download.py --local_dir $EMBEDDING_PATH
 ```
 
 2. Run the dense_search_bge.py script to generate search results. This will output top_k for every partition.
 ```
-$ python dense_search_bge.py --data_version 2025 --data_path $DATA_PATH
+DATA_PATH is the directory that stores the TOT dataset.
+
+$ python dense_search_bge.py --data_version 2025 --data_path $DATA_PATH --embed_src_dir $EMBEDDING_PATH
 ```
 
 3. Run aggregation.py script to aggregate the results and generate run file.

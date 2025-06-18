@@ -18,9 +18,6 @@ from src import utils
 from config import global_config
 log = logging.getLogger(__name__)
 
-METRICS = "recall_10,recall_1000,ndcg_cut_10,ndcg_cut_1000,recip_rank"
-
-
 def create_index(dataset, field_to_index, dest_folder, index, data_version):
     log.info(f"creating files for indexing in {dest_folder}")
     docs_folder = os.path.join(dest_folder, "docs")
@@ -95,7 +92,7 @@ if __name__ == '__main__':
                         help="(optional) path to save run, defaults to json if json is in file name")
     parser.add_argument("--run_id", default=None, help="run id (required if run_format = trec_eval)")
 
-    parser.add_argument("--metrics", required=False, default=METRICS,
+    parser.add_argument("--metrics", required=False, default=global_config.METRICS,
                         help="csv - metrics to evaluate")
     parser.add_argument("--docs_path", default="./anserini_docs", help="path to store (temp) documents for indexing")
     parser.add_argument("--index_path", default="./anserini_indices", help="path to store (all) indices")

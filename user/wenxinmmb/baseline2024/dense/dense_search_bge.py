@@ -20,96 +20,96 @@ log = logging.getLogger(__name__)
 
 def do_partition_search(fl_pattern, res_name, split_name, device):
         
-        # Initialize FAISS index
-        embedding_size = 1024
-        index = faiss.IndexFlatIP(embedding_size) # IndexFlatIP uses inner product (dot product) for similarity
+    # Initialize FAISS index
+    embedding_size = 1024
+    index = faiss.IndexFlatIP(embedding_size) # IndexFlatIP uses inner product (dot product) for similarity
 
-        # Read all files into a single DataFrame
-        directory = args.embed_src_dir
-        file_pattern = f"{directory}/{fl_pattern}"
-        file_paths = glob.glob(file_pattern)
-        df = pl.read_parquet(file_paths)
+    # Read all files into a single DataFrame
+    directory = args.embed_src_dir
+    file_pattern = f"{directory}/{fl_pattern}"
+    file_paths = glob.glob(file_pattern)
+    df = pl.read_parquet(file_paths)
 
-        embeddings = np.vstack(df['embedding'].to_numpy())
-        index.add(embeddings)
-        log.info(f"Added {df.shape[0]} records to FAISS index")
+    embeddings = np.vstack(df['embedding'].to_numpy())
+    index.add(embeddings)
+    log.info(f"Added {df.shape[0]} records to FAISS index")
 
-        # load encoder and calculate query embeddings
-        transformer = SentenceTransformer(
-            "BAAI/bge-m3",
-            device=device,
-            revision="babcf60cae0a1f438d7ade582983d4ba462303c2",
+    # load encoder and calculate query embeddings
+    transformer = SentenceTransformer(
+        "BAAI/bge-m3",
+        device=device,
+        revision="babcf60cae0a1f438d7ade582983d4ba462303c2",
+    )
+
+    encode_batch_size = 8
+    queries = []
+    dataset = ir_datasets.load(split_name)
+    
+    top_k = 1000  # number of top results to retrieve
+    all_scores = np.empty((0, top_k))
+    all_raw_doc_ids = np.empty((0, top_k), dtype=int)
+    qids = []
+    
+    def _calculate_score_for_batch(query_batch):
+        query_vectors = transformer.encode(
+            sentences=query_batch,
+            show_progress_bar=True,
+            normalize_embeddings=True,
         )
+        scores, raw_doc_ids = index.search(query_vectors, k=top_k)
+        log.info(f"Score: \n{scores}, \nDoc ID: \n{raw_doc_ids}")
+        return scores, raw_doc_ids
 
-        encode_batch_size = 8
-        queries = []
-        dataset = ir_datasets.load(split_name)
-        
-        top_k = 1000  # number of top results to retrieve
-        all_scores = np.empty((0, top_k))
-        all_raw_doc_ids = np.empty((0, top_k), dtype=int)
-        qids = []
-        
-        def _calculate_score_for_batch(query_batch):
-            query_vectors = transformer.encode(
-                sentences=query_batch,
-                show_progress_bar=True,
-                normalize_embeddings=True,
-            )
-            scores, raw_doc_ids = index.search(query_vectors, k=top_k)
-            log.info(f"Score: \n{scores}, \nDoc ID: \n{raw_doc_ids}")
-            return scores, raw_doc_ids
-
-        for q in dataset.queries_iter():
-            log.info('Processing query - %s: %s', q.query_id, q.query[:150])
-            queries.append(q.query)
-            qids.append(q.query_id)
-            if len(queries) >= encode_batch_size:
-                scores, raw_doc_ids = _calculate_score_for_batch(queries)
-                all_scores = np.vstack((all_scores, scores))
-                all_raw_doc_ids = np.vstack((all_raw_doc_ids, raw_doc_ids))
-                queries = []
-
-        if len(queries) > 0:
+    for q in dataset.queries_iter():
+        log.info('Processing query - %s: %s', q.query_id, q.query[:150])
+        queries.append(q.query)
+        qids.append(q.query_id)
+        if len(queries) >= encode_batch_size:
             scores, raw_doc_ids = _calculate_score_for_batch(queries)
             all_scores = np.vstack((all_scores, scores))
             all_raw_doc_ids = np.vstack((all_raw_doc_ids, raw_doc_ids))
+            queries = []
 
-        log.info(f"Total queries processed: scores shape -- {all_scores.shape}, "
-                 f"raw_doc_ids shape -- {all_raw_doc_ids.shape}")
-        
-        def get_doc_id(id, df):
-            # assert id >= 0, "Doc ID should be non-negative"
-            df_entry = df.slice(id, 1).select(["id", "title", "url"]).to_dicts()[0]
-            # log.info(f"search result id {id} --> doc_id {df_entry['id']}, title {df_entry['title']}")
-            return str(df_entry['id'])
+    if len(queries) > 0:
+        scores, raw_doc_ids = _calculate_score_for_batch(queries)
+        all_scores = np.vstack((all_scores, scores))
+        all_raw_doc_ids = np.vstack((all_raw_doc_ids, raw_doc_ids))
 
-        # Translate raw_doc_ids to df_entry['id'] as strings
-        translated_ids = [
-            [get_doc_id(id, df) for id in id_rows]
-            for id_rows in all_raw_doc_ids
-        ]
+    log.info(f"Total queries processed: scores shape -- {all_scores.shape}, "
+                f"raw_doc_ids shape -- {all_raw_doc_ids.shape}")
+    
+    def get_doc_id(id, df):
+        # assert id >= 0, "Doc ID should be non-negative"
+        df_entry = df.slice(id, 1).select(["id", "title", "url"]).to_dicts()[0]
+        # log.info(f"search result id {id} --> doc_id {df_entry['id']}, title {df_entry['title']}")
+        return str(df_entry['id'])
 
-        # write the results to a file
-        with open(res_name, 'w') as f:
-            for qid, sc, rdoc_ids, wikip_ids in zip(qids, all_scores, all_raw_doc_ids, translated_ids):
-                result = {
-                    "query_id": qid,
-                    "scores": sc.tolist(),
-                    "raw_doc_ids": rdoc_ids.tolist(),
-                    "translated_doc_ids": wikip_ids,
-                }
-                json.dump(result, f)
-                f.write('\n')
+    # Translate raw_doc_ids to df_entry['id'] as strings
+    translated_ids = [
+        [get_doc_id(id, df) for id in id_rows]
+        for id_rows in all_raw_doc_ids
+    ]
+
+    # write the results to a file
+    with open(res_name, 'w') as f:
+        for qid, sc, rdoc_ids, wikip_ids in zip(qids, all_scores, all_raw_doc_ids, translated_ids):
+            result = {
+                "query_id": qid,
+                "scores": sc.tolist(),
+                "raw_doc_ids": rdoc_ids.tolist(),
+                "translated_doc_ids": wikip_ids,
+            }
+            json.dump(result, f)
+            f.write('\n')
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser("dense_search_upstash",
+    parser = argparse.ArgumentParser("dense_search_bge",
                         description="semantic search on pre-computed embeddings found on huggingface")
     parser.add_argument("--data_version", default="2025",
                         help="data version to use, e.g., 2024 or 2025")
-    parser.add_argument("--data_path", default="./datasets/TREC-ToT2024/", help="location to dataset")
-    parser.add_argument("--embed_src_dir", default="/Users/wenxin/tot/tot_data/upstash-embed/data/en/",
-                        help="location that stores the embedding parquet files")
+    parser.add_argument("--data_path", required=True, help="location to ToT dataset")
+    parser.add_argument("--embed_src_dir", required=True,
+                        help="location to the folder that stores the BGE embedding parquet files")
     # setting log levels
     logging.basicConfig(level=logging.INFO)
     log.setLevel(logging.INFO)

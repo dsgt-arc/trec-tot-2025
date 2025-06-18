@@ -12,9 +12,8 @@ from torch.utils.data import DataLoader
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-import bm25
 from src import data, encode, utils
-
+from config import global_config
 log = logging.getLogger(__name__)
 
 OUT_TYPES = {
@@ -50,7 +49,7 @@ if __name__ == '__main__':
 
     parser.add_argument("--freeze_base_model", action="store_true", default=False,
                         help="if set, freezes the base layer and trains only a projection layer on top")
-    parser.add_argument("--metrics", required=False, default=bm25.METRICS, help="csv - metrics to evaluate")
+    parser.add_argument("--metrics", required=False, default=global_config.METRICS, help="csv - metrics to evaluate")
     parser.add_argument("--n_hits", default=1000, type=int, help="number of hits to retrieve")
 
     parser.add_argument("--device", type=str, default=None, help="device to train /evaluate model on. e.g 'cuda'")
