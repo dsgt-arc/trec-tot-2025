@@ -8,3 +8,4 @@ bm25_negatives
 dense_embeddings
 distilbert_negatives
 dense_models
+dense/embeddings/*
