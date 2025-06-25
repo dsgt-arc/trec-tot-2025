@@ -83,7 +83,7 @@ def main(corpus_path, model_name, output_folder, parquet_batch_size, encode_batc
     if all_embeddings:
         df = pd.DataFrame({"id": all_ids, "embedding": list(all_embeddings)})
         table = pa.Table.from_pandas(df)
-        pq.write_table(table, os.path.join(output_folder, f"embeddings_{batch_idx:05d}.parquet"))
+        pq.write_table(table, os.path.join(output_folder, f"{batch_idx:05d}.parquet"))
         update_last_processed_line(meta_path, current_line)
     
     # Write model name and date to info file

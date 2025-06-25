@@ -16,7 +16,7 @@ from src import utils
 
 log = logging.getLogger(__name__)
 
-# Run commands: python dense/dense_search_upstash.py --data_version 2025 --data_path $DATA_PATH
+# Run commands: python dense/dense_search_bge.py --data_version 2025 --data_path $DATA_PATH
 
 def do_partition_search(fl_pattern, res_name, split_name, device):
         
