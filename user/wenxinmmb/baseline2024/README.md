@@ -31,6 +31,7 @@ pip install 'transformers[torch]'
 pip install pyarrow # needed to write parquet files
 pip install datasets # needed for dense search on huggingface datasets
 pip install polars
+pip install qwikidata thefuzz # for LLM name resolution gpt_post.py
 ## checking the library versions
 $ pip list
 ...

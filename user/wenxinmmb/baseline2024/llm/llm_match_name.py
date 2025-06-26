@@ -23,6 +23,15 @@ from config import global_config
 
 log = logging.getLogger("gpt_post")
 
+def get_llm_response_titles(query):
+    # gather the titles
+    assert 'result' in query, "query should have 'result' field"
+    if 'error' in query['result']:
+        return []  # skip queries with errors
+    # read the first key from the result
+    key_name, title_list = next(iter(query['result'].items()))
+    print(f"query: {query['query_id']}, key: {key_name}, titles: {title_list}")
+    return title_list
 
 def create_title_index(dataset, dest_folder, index, gather_wikidata_aliases, wikidata_cache):
     log.info(f"creating files for indexing in {dest_folder}")
@@ -226,8 +235,8 @@ if __name__ == '__main__':
 
     titles = []
     for query in queries:
-        # gather the titles
-        titles.extend(query["gpt_queries"])
+        title_list = get_llm_response_titles(query)
+        titles.extend(title_list)
     # dedup
     titles = list(set(titles))
     log.info(f"performing search on title index for {len(titles)} titles")
@@ -359,10 +368,12 @@ if __name__ == '__main__':
     run = {}
     # create run
     for query in queries:
-        qid = query["id"]
+        # qid = query["id"]
+        qid = query["query_id"]
         run[qid] = {}
-        ranks = range(len(query["gpt_queries"]), 0, -1)
-        for rank, title in zip(ranks, query["gpt_queries"]):
+        llm_titles = get_llm_response_titles(query)
+        ranks = range(len(llm_titles), 0, -1)
+        for rank, title in zip(ranks, llm_titles):
             gen_titles = gen_title_to_doc_ids.get(title, [])
             # no matches! :(
             if len(gen_titles) == 0:

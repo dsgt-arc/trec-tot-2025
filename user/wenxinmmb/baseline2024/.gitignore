@@ -9,3 +9,7 @@ dense_embeddings
 distilbert_negatives
 dense_models
 dense/embeddings/*
+llm/anserini_title*
+llm/unmatched/*
+llm/output/*
+llm/wiki-aliases.json

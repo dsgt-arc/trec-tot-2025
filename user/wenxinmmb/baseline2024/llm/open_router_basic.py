@@ -25,7 +25,7 @@ def ask_llm(query):
         "messages": [
             {"role": "user", "content": PROMPT_TEMPLATE.format(query=query)}
         ],
-        "max_tokens": 512,
+        "max_tokens": 300,
         "response_format": {
             "type": "json_schema",
             "strict": True,
