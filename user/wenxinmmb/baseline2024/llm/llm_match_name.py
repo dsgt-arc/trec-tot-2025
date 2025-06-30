@@ -21,7 +21,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from src import utils
 from config import global_config
 
-log = logging.getLogger("gpt_post")
+log = logging.getLogger("llm_match_name")
 
 def get_llm_response_titles(query):
     # gather the titles
@@ -153,8 +153,8 @@ class WikiCache:
 
 if __name__ == '__main__':
 
-    parser = argparse.ArgumentParser("gpt_post", description="post process outputfrom GPT, and compute run")
-    parser.add_argument("--input", required=True, help="output from GPT (json)")
+    parser = argparse.ArgumentParser("llm_match_name", description="post process output from LLM, and compute run")
+    parser.add_argument("--input", required=True, help="output from LLM (json)")
 
     parser.add_argument("--split", required=True, help="corresponding split i.e 'train', 'dev1', 'dev2','dev3', 'test'")
     parser.add_argument("--gather_wikidata_aliases", action="store_true", default=False,
