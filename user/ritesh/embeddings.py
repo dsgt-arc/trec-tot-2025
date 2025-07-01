@@ -10,6 +10,7 @@ from datetime import datetime
 import torch
 import zstandard as zstd
 from collections import defaultdict
+import psutil
 
 
 def create_sharded_embeddings(jsonl_path,
@@ -33,6 +34,8 @@ def create_sharded_embeddings(jsonl_path,
     print(f"Model max token length: {max_tokens}")
 
     # Create output directory
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    output_dir = os.path.join(script_dir, output_dir)
     os.makedirs(output_dir, exist_ok=True)
 
     all_data = []
@@ -76,6 +79,7 @@ def create_sharded_embeddings(jsonl_path,
                 if len(all_data) >= shard_size:
                     shard_count += 1
                     save_shard(all_data, shard_count, model_name, output_dir)
+                    kill_other_instances()  # Kill other instances after saving a shard
                     all_data = []
                 if processed_count % 100 == 0:
                     elapsed_time = time.time() - start_time
@@ -108,7 +112,7 @@ def save_shard(data, shard_number, model_name, output_dir):
 
     # Create descriptive filename
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"shard_{shard_number:04d}_{model_short}_{len(data):,}docs_{timestamp}.parquet"
+    filename = f"shard_{shard_number:04d}_{model_short}_{len(data)}docs_{timestamp}.parquet"
     filepath = os.path.join(output_dir, filename)
 
     # Save to Parquet
@@ -251,6 +255,18 @@ def get_full_text_embeddings_batched(docs, model, max_tokens=256, batch_size=512
     return pooled
 
 
+def kill_other_instances():
+    current_pid = os.getpid()
+    for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+        try:
+            if proc.info['pid'] != current_pid and 'embeddings.py' in ' '.join(proc.info['cmdline']):
+                print(
+                    f"Killing process {proc.info['pid']}: {' '.join(proc.info['cmdline'])}")
+                proc.kill()
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            continue
+
+
 if __name__ == "__main__":
 
     # model_name = 'BAAI/bge-small-en-v1.5'
@@ -265,7 +281,7 @@ if __name__ == "__main__":
     create_sharded_embeddings(
         '/workspace/trec-tot-2025-corpus.jsonl.zst',
         model_name,
-        batch_size=512,
+        batch_size=1024,
         shard_size=100000,
         output_dir='embeddings_shards'
     )
