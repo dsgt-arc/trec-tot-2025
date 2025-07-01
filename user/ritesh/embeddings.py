@@ -9,6 +9,7 @@ import os
 from datetime import datetime
 import torch
 import zstandard as zstd
+from collections import defaultdict
 
 
 def create_sharded_embeddings(jsonl_path,
@@ -27,6 +28,9 @@ def create_sharded_embeddings(jsonl_path,
     model = SentenceTransformer(model_name, device=device)
     dimension = model.get_sentence_embedding_dimension()
     print(f"Model dimension: {dimension}")
+    # Automatically detect max token length
+    max_tokens = model.tokenizer.model_max_length
+    print(f"Model max token length: {max_tokens}")
 
     # Create output directory
     os.makedirs(output_dir, exist_ok=True)
@@ -45,85 +49,54 @@ def create_sharded_embeddings(jsonl_path,
     with file_handle as f:
         batch_texts = []
         batch_metadata = []
-
         for line in tqdm(f, desc="Processing documents"):
-
-            # Check if we've reached the limit
             if max_entries is not None and processed_count >= max_entries:
                 break
-
             data = json.loads(line.strip())
-
-            # Format text for E5/BGE models
-            # E5 models expect "query: " or "passage: " prefix
-            # BGE models work well with just the text
             if 'e5' in model_name.lower():
                 text = f"passage: {data['title']} {data['text']}"
             else:
                 text = f"{data['title']} {data['text']}"
-
             batch_texts.append(text)
             batch_metadata.append({
                 'id': data['id'],
                 'url': data['url'],
                 'title': data['title']
             })
-
             if len(batch_texts) >= batch_size:
-                # Generate embeddings
-                embeddings = model.encode(
-                    batch_texts, show_progress_bar=False, batch_size=batch_size)
-
-                # Combine metadata and embeddings
-                for j, (emb, meta) in enumerate(zip(embeddings, batch_metadata)):
+                # Batch all chunks from these docs
+                pooled_embeddings = get_full_text_embeddings_batched(
+                    batch_texts, model, max_tokens=max_tokens, batch_size=batch_size)
+                for emb, meta in zip(pooled_embeddings, batch_metadata):
                     row = meta.copy()
-                    # Add embedding columns
                     row.update({f'emb_{k}': float(v)
                                for k, v in enumerate(emb)})
                     all_data.append(row)
-
                 processed_count += len(batch_texts)
-
-                # Save shard when we reach shard_size
                 if len(all_data) >= shard_size:
                     shard_count += 1
                     save_shard(all_data, shard_count, model_name, output_dir)
-                    all_data = []  # Clear memory
-
-                # print progress
-                if processed_count % batch_size == 0:
+                    all_data = []
+                if processed_count % 100 == 0:
                     elapsed_time = time.time() - start_time
                     docs_per_second = processed_count / elapsed_time
                     print(f"Processed {processed_count:,} documents | "
                           f"Rate: {docs_per_second:.1f} docs/s | "
                           f"Elapsed: {elapsed_time/60:.1f} minutes")
-
-                # Clear batch
                 batch_texts = []
                 batch_metadata = []
-
         # Process remaining items
-        if batch_texts and (max_entries is None or processed_count < max_entries):
-            remaining_slots = max_entries - \
-                processed_count if max_entries else len(batch_texts)
-            if max_entries:
-                batch_texts = batch_texts[:remaining_slots]
-                batch_metadata = batch_metadata[:remaining_slots]
-
-            embeddings = model.encode(
-                batch_texts, show_progress_bar=False, batch_size=batch_size)
-
-            for j, (emb, meta) in enumerate(zip(embeddings, batch_metadata)):
+        if batch_texts:
+            pooled_embeddings = get_full_text_embeddings_batched(
+                batch_texts, model, max_tokens=max_tokens, batch_size=batch_size)
+            for emb, meta in zip(pooled_embeddings, batch_metadata):
                 row = meta.copy()
                 row.update({f'emb_{k}': float(v) for k, v in enumerate(emb)})
                 all_data.append(row)
-
             processed_count += len(batch_texts)
-
-    # Save final shard if there's remaining data
-    if all_data:
-        shard_count += 1
-        save_shard(all_data, shard_count, model_name, output_dir)
+        if all_data:
+            shard_count += 1
+            save_shard(all_data, shard_count, model_name, output_dir)
 
 
 def save_shard(data, shard_number, model_name, output_dir):
@@ -247,9 +220,44 @@ def search_shards(output_dir, query, model_name, top_k=5):
     return all_results[:top_k]
 
 
+def chunk_text(text, tokenizer, max_tokens=512, stride=512):
+    tokens = tokenizer.tokenize(text)
+    chunks = []
+    for i in range(0, len(tokens), stride):
+        chunk_tokens = tokens[i:i+max_tokens]
+        chunk_text = tokenizer.convert_tokens_to_string(chunk_tokens)
+        chunks.append(chunk_text)
+        if len(chunk_tokens) < max_tokens:
+            break
+    return chunks
+
+
+def get_full_text_embeddings_batched(docs, model, max_tokens=256, batch_size=512):
+    tokenizer = model.tokenizer
+    chunked_texts = []
+    doc_indices = []  # Track which doc each chunk belongs to
+    for idx, text in enumerate(docs):
+        chunks = chunk_text(text, tokenizer, max_tokens=max_tokens)
+        chunked_texts.extend(chunks)
+        doc_indices.extend([idx] * len(chunks))
+    # Batch encode all chunks
+    embeddings = model.encode(
+        chunked_texts, show_progress_bar=False, batch_size=batch_size)
+    # Group by doc and mean-pool
+    doc_to_embs = defaultdict(list)
+    for emb, doc_idx in zip(embeddings, doc_indices):
+        doc_to_embs[doc_idx].append(emb)
+    pooled = [np.mean(doc_to_embs[i], axis=0) for i in range(len(docs))]
+    return pooled
+
+
 if __name__ == "__main__":
 
-    model_name = 'BAAI/bge-base-en-v1.5'
+    # model_name = 'BAAI/bge-small-en-v1.5'
+    # or
+    model_name = 'sentence-transformers/all-MiniLM-L6-v2'
+    # or
+    # model_name = 'intfloat/e5-small-v2'
 
     start_time = time.time()
 
@@ -258,7 +266,7 @@ if __name__ == "__main__":
         '/workspace/trec-tot-2025-corpus.jsonl.zst',
         model_name,
         batch_size=512,
-        shard_size=100,
+        shard_size=100000,
         output_dir='embeddings_shards'
     )
 
