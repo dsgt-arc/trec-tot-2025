@@ -161,7 +161,7 @@ if __name__ == "__main__":
     start_shard = 0
     tmp_results_dir = "/workspace/tmp_search_results"
     os.makedirs(tmp_results_dir, exist_ok=True)
-    # search_shards_efficient(output_dir, queries_jsonl_path, model_name, top_k, start_shard, tmp_results_dir)
+    search_shards_efficient(output_dir, queries_jsonl_path, model_name, top_k, start_shard, tmp_results_dir)
     
     output_file = "/workspace/top_k_results.jsonl"  # or .json if you prefer
     results, output_file = aggregate_shard_results(tmp_results_dir, top_k, output_file)
