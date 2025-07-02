@@ -9,7 +9,7 @@ import json
 from collections import defaultdict
 import gc
 
-def search_shards_efficient(output_dir, queries_jsonl_path, model_name, top_k=5, start_shard=0, tmp_results_dir=None):
+def search_shards_efficient(output_dir, queries_jsonl_path, model_name, top_k=5, start_shard=0, tmp_results_dir=None, batch_size=512):
     """
     Memory-efficient search across all shards using queries from JSONL
     """
@@ -22,10 +22,17 @@ def search_shards_efficient(output_dir, queries_jsonl_path, model_name, top_k=5,
             queries.append(data['query'])  # Assuming 'text' is the query field
             query_ids.append(data['query_id'])  # Store the query ID
     
-    # 2. Load model and encode queries (keep in memory)
+    # 2. Load model and detect max token length
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     model = SentenceTransformer(model_name, device=device)
-    query_embeddings = model.encode(queries)
+    max_tokens = model.tokenizer.model_max_length
+
+    # For each query, chunk and mean-pool to handle long queries
+    query_embeddings = []
+    for query in queries:
+        emb = get_full_text_embedding(query, model, max_tokens=max_tokens, stride=max_tokens//2, batch_size=batch_size)
+        query_embeddings.append(emb)
+    query_embeddings = np.stack(query_embeddings)
 
     # normalize the query embeddings
     query_embeddings = query_embeddings / np.linalg.norm(query_embeddings, axis=1, keepdims=True)
@@ -153,15 +160,34 @@ def aggregate_shard_results(tmp_results_dir, top_k=5, output_file=None):
     return top_k_results, output_file
 
 
+def chunk_text(text, tokenizer, max_tokens=512, stride=512):
+    tokens = tokenizer.tokenize(text)
+    chunks = []
+    for i in range(0, len(tokens), stride):
+        chunk_tokens = tokens[i:i+max_tokens]
+        chunk_text = tokenizer.convert_tokens_to_string(chunk_tokens)
+        chunks.append(chunk_text)
+        if len(chunk_tokens) < max_tokens:
+            break
+    return chunks
+
+def get_full_text_embedding(text, model, max_tokens=512, stride=512, batch_size=512):
+    tokenizer = model.tokenizer
+    chunks = chunk_text(text, tokenizer, max_tokens=max_tokens, stride=stride)
+    embeddings = model.encode(chunks, show_progress_bar=False, batch_size=batch_size)
+    return np.mean(embeddings, axis=0)
+
+
 if __name__ == "__main__":
     output_dir = "/workspace/embeddings_shards_from_parquet"
     queries_jsonl_path = "/workspace/dev1-2025-queries.jsonl"
     model_name = "sentence-transformers/all-MiniLM-L6-v2"
+    batch_size = 512
     top_k = 1000
-    start_shard = 0
+    start_shard = 35
     tmp_results_dir = "/workspace/tmp_search_results"
     os.makedirs(tmp_results_dir, exist_ok=True)
-    search_shards_efficient(output_dir, queries_jsonl_path, model_name, top_k, start_shard, tmp_results_dir)
+    # search_shards_efficient(output_dir, queries_jsonl_path, model_name, top_k, start_shard, tmp_results_dir, batch_size)
     
     output_file = "/workspace/top_k_results.jsonl"  # or .json if you prefer
     results, output_file = aggregate_shard_results(tmp_results_dir, top_k, output_file)
