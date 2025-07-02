@@ -11,6 +11,7 @@ import torch
 import zstandard as zstd
 from collections import defaultdict
 import psutil
+import itertools
 
 
 def create_sharded_embeddings(jsonl_path,
@@ -19,7 +20,8 @@ def create_sharded_embeddings(jsonl_path,
                               max_entries=None,
                               output_prefix='wikipedia',
                               shard_size=1000000,
-                              output_dir='embeddings_shards'):
+                              output_dir='embeddings_shards',
+                              start_entry=0):
     """
     Create embeddings and save as multiple smaller Parquet files
     """
@@ -52,7 +54,8 @@ def create_sharded_embeddings(jsonl_path,
     with file_handle as f:
         batch_texts = []
         batch_metadata = []
-        for line in tqdm(f, desc="Processing documents"):
+        current_entry = 0
+        for line in tqdm(itertools.islice(f, start_entry, None), desc="Processing documents"):
             if max_entries is not None and processed_count >= max_entries:
                 break
             data = json.loads(line.strip())
@@ -89,6 +92,7 @@ def create_sharded_embeddings(jsonl_path,
                           f"Elapsed: {elapsed_time/60:.1f} minutes")
                 batch_texts = []
                 batch_metadata = []
+            current_entry += 1
         # Process remaining items
         if batch_texts:
             pooled_embeddings = get_full_text_embeddings_batched(
@@ -281,9 +285,10 @@ if __name__ == "__main__":
     create_sharded_embeddings(
         '/workspace/trec-tot-2025-corpus.jsonl.zst',
         model_name,
-        batch_size=1024,
+        batch_size=512,
         shard_size=100000,
-        output_dir='embeddings_shards'
+        output_dir='embeddings_shards',
+        start_entry=100352
     )
 
     end_time = time.time()
