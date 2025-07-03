@@ -24,16 +24,51 @@ from config import global_config
 log = logging.getLogger("llm_match_name")
 
 def get_llm_response_titles(query):
-    # gather the titles
+    # Robustly extract entity names from various LLM response formats
     assert 'result' in query, "query should have 'result' field"
     if 'error' in query['result']:
         return []  # skip queries with errors
-    # read the first key from the result
-    key_name, title_list = next(iter(query['result'].items()))
-    print(f"query: {query['query_id']}, key: {key_name}, titles: {title_list}")
-    return title_list
 
-def create_title_index(dataset, dest_folder, index, gather_wikidata_aliases, wikidata_cache):
+    result = query['result']
+    # Possible keys that may contain entity names
+    candidate_keys = [
+        'entities',
+        'possible_entities',
+        'possible_palaces',
+        'entity_names',
+    ]
+
+    for key in candidate_keys:
+        if key in result:
+            value = result[key]
+            # If it's a list of dicts with 'entity_name', extract those
+            if isinstance(value, list) and value and isinstance(value[0], dict):
+                # Try 'entity_name' or 'name' as key
+                if 'entity_name' in value[0]:
+                    return [item['entity_name'] for item in value if 'entity_name' in item]
+                elif 'name' in value[0]:
+                    return [item['name'] for item in value if 'name' in item]
+            # If it's a list of strings
+            if isinstance(value, list) and (not value or isinstance(value[0], str)):
+                return value
+    # If 'entity_names' is present (sometimes as a secondary key)
+    if 'entity_names' in result:
+        return result['entity_names']
+    # If none of the above, try to extract the first list of strings or dicts with 'entity_name' or 'name'
+    for v in result.values():
+        if isinstance(v, list):
+            if v and isinstance(v[0], dict):
+                if 'entity_name' in v[0]:
+                    return [item['entity_name'] for item in v if 'entity_name' in item]
+                elif 'name' in v[0]:
+                    return [item['name'] for item in v if 'name' in item]
+            if v and isinstance(v[0], str):
+                return v
+    # Fallback: return empty list
+    print(f"[WARN] Could not extract entity names for query: {query.get('query_id')}, result: {result}")
+    return []
+
+def create_title_index(dataset, dest_folder, index, gather_wikidata_aliases):
     log.info(f"creating files for indexing in {dest_folder}")
     docs_folder = os.path.join(dest_folder, "docs")
     os.makedirs(docs_folder, exist_ok=True)
@@ -42,28 +77,25 @@ def create_title_index(dataset, dest_folder, index, gather_wikidata_aliases, wik
     aliases = {}   
 
     if gather_wikidata_aliases:
-        assert False, 'not supported for 2025 data yet'
-        wikicache = WikiCache(wikidata_cache)
+        # load the alias json file
+        alias_path = "/home/wenxin/project/data/id_to_aliases.json"
+        if not os.path.exists(alias_path):
+            raise ValueError(f"alias file not found: {alias_path}. Double check the path or run the script to generate it.")
+        log.info(f"loading aliases from {alias_path}")
+        aliases = json.load(open(alias_path, "r", encoding="utf-8"))
 
     log.info(f"gather_wikidata_aliases: {gather_wikidata_aliases}")
     with open(os.path.join(docs_folder, "docs.jsonl"), "w") as writer:
         for raw_doc in tqdm(dataset.docs_iter(), desc="gathering aliases"):
-
             if hasattr(raw_doc, 'doc_id'): # for 2024 data
                 doc_id = raw_doc.doc_id
             else:  # for 2025 data
                 doc_id = raw_doc.id
-            aliases[doc_id] = {raw_doc.title}
-
-            if gather_wikidata_aliases:
-                # TODO: not supported for 2025 data. Enable this for 2025 data later.
-                assert False, 'not supported for 2025 data yet'
-                went = wikicache.get(raw_doc.wikidata_id)
-                if went:
-                    al = went["aliases"]
-                    if "en" in al:
-                        for a in al["en"]:
-                            aliases[doc_id].add(a["value"])
+            if not gather_wikidata_aliases:
+                aliases[doc_id] = {raw_doc.title}
+            else:
+                original_list = aliases[doc_id].copy()
+                aliases[doc_id] = set(original_list)
 
             # remove braces and add to aliases
             no_br = set()
@@ -121,36 +153,6 @@ def resolve(title, matched_title, title_to_doc_id, aliases, scorer, assert_perfe
 
     return gen
 
-
-class WikiCache:
-    def __init__(self, location="./wikidata_cache"):
-        self.loc = location
-        os.makedirs(location, exist_ok=True)
-
-    def get(self, wid):
-        cache_path = os.path.join(self.loc, wid)
-        if os.path.exists(cache_path):
-            return utils.read_json(cache_path)["entity"]
-
-        try:
-            ent = get_entity_dict_from_api(wid)
-        except qwikidata.linked_data_interface.LdiResponseNotOk as e:
-            log.exception(f"unable to find {wid}, skipping!")
-            return None
-
-        utils.write_json({
-            "entity": ent,
-            "retrieved_on": datetime.now().isoformat()}
-            , cache_path)
-        return ent
-
-    def exists(self, wid):
-        cache_path = os.path.join(self.loc, wid)
-        if os.path.exists(cache_path):
-            return True, utils.read_json(cache_path)["retrieved_on"]
-        return False, None
-
-
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser("llm_match_name", description="post process output from LLM, and compute run")
@@ -175,7 +177,6 @@ if __name__ == '__main__':
     parser.add_argument("--param_b", default=1.0, type=float, help="param: b for BM25")
     parser.add_argument("--n_threads", default=8, type=int, help="number of threads (eval)")
     parser.add_argument("--batch_size", default=16, type=int, help="batch size (eval) ")
-    parser.add_argument("--wikidata_cache", required=False, type=str)
     parser.add_argument("--data_version", default="2025",
                         help="data version to use, e.g., 2024 or 2025")
 
@@ -183,9 +184,6 @@ if __name__ == '__main__':
     log.setLevel(logging.INFO)
 
     args = parser.parse_args()
-    if args.gather_wikidata_aliases:
-        assert args.wikidata_cache is not None, "provide --wikidata_cache"
-        os.makedirs(args.wikidata_cache, exist_ok=True)
 
     split = args.split
 
@@ -206,14 +204,16 @@ if __name__ == '__main__':
     args = parser.parse_args()
     docs_path = os.path.join(args.docs_path, args.index_name)
     index = os.path.join(args.index_path, args.index_name)
-    AL_PATH = "./wiki-aliases.json"
+    if args.gather_wikidata_aliases:
+        AL_PATH = "/home/wenxin/project/data/id_to_aliases.json"
+    else:
+        AL_PATH = "./wiki-no-aliases.json"
     if not os.path.exists(index):
         log.info("Creating index!")
         aliases = create_title_index(dataset=dataset,
                                      dest_folder=docs_path,
                                      index=index,
-                                     gather_wikidata_aliases=args.gather_wikidata_aliases,
-                                     wikidata_cache=args.wikidata_cache)
+                                     gather_wikidata_aliases=args.gather_wikidata_aliases)
         aliases = {k: list(v) for (k, v) in aliases.items()}
         utils.write_json(aliases, AL_PATH)
     else:
@@ -236,6 +236,7 @@ if __name__ == '__main__':
     titles = []
     for query in queries:
         title_list = get_llm_response_titles(query)
+        print(f"query: {query['query_id']}, titles: {title_list}")
         titles.extend(title_list)
     # dedup
     titles = list(set(titles))
@@ -264,6 +265,7 @@ if __name__ == '__main__':
                 matches["exact_1"] += 1
             else:
                 matches["exact_n"] += 1
+            print('title:', title, 'matches:', gen_title_to_doc_ids[title])
         else:
 
             # no exact match, perform retrieval, followed by matching
@@ -285,6 +287,7 @@ if __name__ == '__main__':
                 unmatched_props[title] = {
                     "choices": choices
                 }
+                print('title:', title, 'no match from bm25 search (L290)')
                 continue
 
             matched_title, score = matched
@@ -301,6 +304,7 @@ if __name__ == '__main__':
                     print(title, gen_title_to_doc_ids[title])
                 else:
                     matches["inexact_n"] += 1
+                print('title:', title, 'fuzzy matches:', gen_title_to_doc_ids[title])
 
             ## try again after removing braces and non alpha numeric characters
 
@@ -315,6 +319,7 @@ if __name__ == '__main__':
                     "choices_nobr": choices_nobr,
                     "matched": matched
                 }
+                print('title:', title, 'no match from matched_nobr (L322)')
                 continue
 
             matched_title_nobr, score_nobr = matched_nobr
@@ -328,6 +333,7 @@ if __name__ == '__main__':
                                                       scorer=scorer,
                                                       assert_perfect_score=False)
 
+                print('title:', title, 'fuzzy nobr matches:', gen_title_to_doc_ids[title])
             else:
                 unmatched.add(title)
                 unmatched_props[title] = {
@@ -336,6 +342,7 @@ if __name__ == '__main__':
                     "matched": matched,
                     "matched_nobr": matched_nobr
                 }
+                print('title:', title, 'no match from matched_nobr (L344)')
                 continue
 
     print(matches)
