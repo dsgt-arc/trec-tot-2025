@@ -8,6 +8,7 @@ import torch
 import json
 from collections import defaultdict
 import gc
+import glob
 
 def search_shards_efficient(output_dir, queries_jsonl_path, model_name, top_k=5, start_shard=0, tmp_results_dir=None, batch_size=512):
     """
@@ -178,19 +179,71 @@ def get_full_text_embedding(text, model, max_tokens=512, stride=512, batch_size=
     return np.mean(embeddings, axis=0)
 
 
+def aggregate_shard_results_batched(tmp_results_dir, top_k=5, batch_size=10, output_file=None):
+    """
+    Aggregate results in batches to manage memory usage.
+    Process batch_size files at a time, get top-k, then move to next batch.
+    """
+    # Get all result files
+    result_files = glob.glob(os.path.join(tmp_results_dir, "*.jsonl"))
+    result_files.sort()  # Process in order
+    
+    # Initialize final results storage
+    final_results = defaultdict(list)
+    
+    # Process files in batches
+    for i in range(0, len(result_files), batch_size):
+        batch_files = result_files[i:i+batch_size]
+        print(f"Processing batch {i//batch_size + 1}: files {i+1}-{min(i+batch_size, len(result_files))}")
+        
+        # Collect results from this batch
+        batch_results = defaultdict(list)
+        
+        for fname in batch_files:
+            print(f"  Reading {os.path.basename(fname)}...")
+            with open(fname, "r", encoding="utf-8") as f:
+                for line in f:
+                    obj = json.loads(line)
+                    query_id = obj["query_id"]
+                    batch_results[query_id].append(obj)
+        
+        # Merge batch results with final results
+        for query_id, results in batch_results.items():
+            final_results[query_id].extend(results)
+        
+        # Get top-k for each query after this batch
+        for query_id in final_results:
+            sorted_results = sorted(final_results[query_id], key=lambda x: x["score"], reverse=True)
+            final_results[query_id] = sorted_results[:top_k]
+        
+        # Clear batch results to free memory
+        del batch_results
+        gc.collect()
+        
+    # write the results to a jsonl file
+    if output_file is not None:
+        with open(output_file, "w", encoding="utf-8") as f:
+            for query_id, results in final_results.items():
+                for result in results:
+                    f.write(json.dumps(result) + "\n")
+    
+    return final_results
+
+
 if __name__ == "__main__":
     output_dir = "/workspace/embeddings_shards_from_parquet"
-    queries_jsonl_path = "/workspace/dev1-2025-queries.jsonl"
+    queries_jsonl_path = "/workspace/dev3-2025-queries.jsonl"
     model_name = "sentence-transformers/all-MiniLM-L6-v2"
     batch_size = 512
     top_k = 1000
-    start_shard = 35
+    start_shard = 0
     tmp_results_dir = "/workspace/tmp_search_results"
     os.makedirs(tmp_results_dir, exist_ok=True)
     # search_shards_efficient(output_dir, queries_jsonl_path, model_name, top_k, start_shard, tmp_results_dir, batch_size)
     
-    output_file = "/workspace/top_k_results.jsonl"  # or .json if you prefer
-    results, output_file = aggregate_shard_results(tmp_results_dir, top_k, output_file)
+    output_file = "/workspace/miniLM_dev3_top_k_results.jsonl"  # or .json if you prefer
+    # results, output_file = aggregate_shard_results(tmp_results_dir, top_k, output_file)
+    results = aggregate_shard_results_batched(tmp_results_dir, top_k, 10, output_file)
     # print the results
     for query_id, results in results.items():
         print(f"Query ID: {query_id}")
