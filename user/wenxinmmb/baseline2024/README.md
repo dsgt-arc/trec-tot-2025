@@ -43,11 +43,6 @@ pyserini              0.44.0
 ### 2024 Dataset (You can skip this to download 2025 dataset directly)
 1. Download 2024 dataset from https://trec-tot.github.io/guidelines-2024 (See Datasets section) or https://zenodo.org/records/11185090. (Noted: the corpus is around 3GB, so it may take a while to download. The 2024 dataset corpus contains 3m wikipedia documents, while the 2025 dataset uses the whole 6m wikipedia english documents as the corpus.)
 
-Command (if you prefer)
-```
-wget https://zenodo.org/api/records/11185090/files-archive -O tot-2024-dataset.zip && unzip tot-2024-dataset.zip
-```
-
 2. set DATA_PATH to the folder which contains the uncompressed files s.t:
 
 ```

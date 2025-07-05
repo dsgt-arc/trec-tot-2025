@@ -10,9 +10,7 @@ from datetime import datetime
 import ir_datasets
 import pandas as pd
 import pytrec_eval
-import qwikidata
 from pyserini.search.lucene import LuceneSearcher
-from qwikidata.linked_data_interface import get_entity_dict_from_api
 from thefuzz import fuzz, process
 from tqdm import tqdm
 
@@ -38,16 +36,21 @@ def get_llm_response_titles(query):
         'entity_names',
     ]
 
+    inner_keys = [
+        'entity_name',
+        'name',
+        # 'title'
+    ]
+
     for key in candidate_keys:
         if key in result:
             value = result[key]
             # If it's a list of dicts with 'entity_name', extract those
             if isinstance(value, list) and value and isinstance(value[0], dict):
                 # Try 'entity_name' or 'name' as key
-                if 'entity_name' in value[0]:
-                    return [item['entity_name'] for item in value if 'entity_name' in item]
-                elif 'name' in value[0]:
-                    return [item['name'] for item in value if 'name' in item]
+                for inner_key in inner_keys:
+                    if inner_key in value[0]:
+                        return [item[inner_key] for item in value if inner_key in item]
             # If it's a list of strings
             if isinstance(value, list) and (not value or isinstance(value[0], str)):
                 return value
@@ -58,10 +61,9 @@ def get_llm_response_titles(query):
     for v in result.values():
         if isinstance(v, list):
             if v and isinstance(v[0], dict):
-                if 'entity_name' in v[0]:
-                    return [item['entity_name'] for item in v if 'entity_name' in item]
-                elif 'name' in v[0]:
-                    return [item['name'] for item in v if 'name' in item]
+                for inner_key in inner_keys:
+                    if inner_key in v[0]:
+                        return [item[inner_key] for item in v if inner_key in item]
             if v and isinstance(v[0], str):
                 return v
     # Fallback: return empty list
@@ -128,14 +130,11 @@ def create_title_index(dataset, dest_folder, index, gather_wikidata_aliases):
 
     return aliases
 
-
 def remove_braces(text):
     return re.sub("[\(].*?[\)]", "", text).strip()
 
-
 def remove_non_alpha(text):
     return re.sub(r'[\W\s]', ' ', text)
-
 
 def resolve(title, matched_title, title_to_doc_id, aliases, scorer, assert_perfect_score=False):
     gen = []
@@ -248,8 +247,8 @@ if __name__ == '__main__':
     matches = Counter()
     unmatched = set()
     unmatched_props = {}
-    MIN_SCORE = 100
-    BM25_K = 5
+    MIN_SCORE = 70 # original: 100
+    BM25_K = 10 # original 5
 
     scorer = fuzz.ratio
     for title in tqdm(titles):
@@ -342,7 +341,7 @@ if __name__ == '__main__':
                     "matched": matched,
                     "matched_nobr": matched_nobr
                 }
-                print('title:', title, 'no match from matched_nobr (L344)')
+                print('title:', title, 'no match from matched_nobr (L344)', matched_nobr)
                 continue
 
     print(matches)
