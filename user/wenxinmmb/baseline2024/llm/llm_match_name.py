@@ -21,6 +21,9 @@ from config import global_config
 
 log = logging.getLogger("llm_match_name")
 
+# Command:
+# python llm_match_name.py --input output/dev3-o4-mini.jsonl --split dev3 --data_path $DATA_PATH --index_name llm_title_alias --run output/dev3-o4-mini-70-25.run --run_id o4-mini_alias --gather_wikidata_aliases
+
 def get_llm_response_titles(query):
     # Robustly extract entity names from various LLM response formats
     assert 'result' in query, "query should have 'result' field"

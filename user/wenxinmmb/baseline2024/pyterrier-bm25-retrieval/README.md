@@ -13,7 +13,6 @@ The runs for all splits are available:
 | trec-tot/2025/dev2  | [runs/dev2/run.txt.gz](runs/dev2/run.txt.gz)   |
 | trec-tot/2025/dev3  | [runs/dev3/run.txt.gz](runs/dev3/run.txt.gz)   |
 
-
 ## Existing Indices
 
 A pre-built PyTerrier index is available online so that you can make faster experimentation:
@@ -31,6 +30,11 @@ md5sum trec-tot-2025-pyterrier-index.zip
 unzip trec-tot-2025-pyterrier-index.zip
 ```
 
+
+## Additional dependencies
+```
+pip install click python-terrier==0.13.0 tirex-tracker>=0.2.14
+```
 ## Run it locally:
 
 ```
@@ -46,3 +50,8 @@ unzip trec-tot-2025-pyterrier-index.zip
 ```
 docker run --rm -ti -w /app -v /mnt/ceph/tira/state/ir_datasets/:/root/.ir_datasets -v ${PWD}:/app --entrypoint ./baseline.py mam10eks/trec-tot-pyterrier-baseline:dev-0.0.1 --output runs/bm25/train.run.txt.gz --index trec-tot-2025-pyterrier-index --dataset trec-tot/2025/train
 ```
+
+python ./baseline.py --output runs/bm25-2/ --index /home/wenxin/project/pyterrrier-index/trec-tot-2025-pyterrier-index --splits train-2025 --data_path $DATA_PATH
+
+### Unzip the run result
+$ gzip -d runs/bm25-2/run.txt.gz

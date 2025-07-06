@@ -7,7 +7,11 @@ import argparse
 # Set the environment variable using command `export OPENROUTER_API_KEY=your_api_key`
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY") 
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
-MODEL = "google/gemini-2.5-flash"
+MODEL = "openai/o4-mini"
+# Other models: "google/gemma-3-1b-it:free", "google/gemma-3-27b-it"
+
+# Command:
+# python open_router_basic.py --input_file $DATA_PATH/dev3-2025/queries.jsonl --output_file output/dev3-o4-mini.jsonl
 
 PROMPT_TEMPLATE = (
     "Think about 5 possible entities that match the description below. "
@@ -25,7 +29,7 @@ def ask_llm(query):
         "messages": [
             {"role": "user", "content": PROMPT_TEMPLATE.format(query=query)}
         ],
-        "max_tokens": 300,
+        "max_tokens": 5000,
         "response_format": {
             "type": "json_schema",
             "strict": True,
