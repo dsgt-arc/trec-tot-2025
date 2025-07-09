@@ -1,0 +1,4 @@
+https://dumps.wikimedia.org/enwiki/20250701/enwiki-20250701-page.sql.gz
+https://dumps.wikimedia.org/enwiki/20250701/enwiki-20250701-categorylinks.sql.gz
+https://dumps.wikimedia.org/enwiki/20250701/enwiki-20250701-pagelinks.sql.gz
+
