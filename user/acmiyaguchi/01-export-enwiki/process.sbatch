@@ -12,19 +12,22 @@
 
 # --- Configuration ---
 # Set the base directory where your .sif file and this script are located
+export TABLE_NAME=${1?"No table name provided. Usage: sbatch process.sbatch <table_name>"}
 export BASE_DIR="$HOME/scratch/trec-tot-2025/data/enwiki"
 export SIF_FILE="$BASE_DIR/mariadb_latest.sif"
+export TASK_DIR="$BASE_DIR/$TABLE_NAME"
+mkdir -p "$TASK_DIR"
 # get slurm launch directory _or_ the directory of this script
 if [ -z "$SLURM_SUBMIT_DIR" ]; then
     SLURM_SUBMIT_DIR=$(dirname "$0")
 fi
-cp $SLURM_SUBMIT_DIR/{z-process.sh,writable-socket.cnf} "$BASE_DIR/"
+cp $SLURM_SUBMIT_DIR/{z-process.sh,writable-socket.cnf} "$TASK_DIR"
 
 # Define directories for the process
-export CONFIG_FILE="$BASE_DIR/writable-socket.cnf" # Path to new config file
-export INIT_DIR="$BASE_DIR/init-scripts" # For scripts and SQL files
-export DATA_DIR="$BASE_DIR/mariadb-data"  # For the persistent database
-export OUTPUT_DIR="$BASE_DIR/csv-output"  # For the final CSV files
+export CONFIG_FILE="$TASK_DIR/writable-socket.cnf" # Path to new config file
+export INIT_DIR="$TASK_DIR/init-scripts" # For scripts and SQL files
+export DATA_DIR="$TASK_DIR/mariadb-data"  # For the persistent database
+export OUTPUT_DIR="$TASK_DIR/csv-output"  # For the final CSV files
 
 # --- Setup ---
 echo "INFO: Cleaning up previous run and setting up directories..."
@@ -33,10 +36,12 @@ mkdir -p "$INIT_DIR" "$DATA_DIR" "$OUTPUT_DIR" "$BASE_DIR/logs"
 
 echo "INFO: Preparing initialization files by creating symbolic links..."
 # Use 'ln -s' to link to the large files instead of copying them
-ln -s "$BASE_DIR"/*.sql.gz "$INIT_DIR/"
+# there should be an error if there are no matching files
+ln -s "$BASE_DIR"/*${TABLE_NAME}*.sql.gz "$INIT_DIR/"
 # The export script is small, so copying is fine
-cp "$BASE_DIR/z-process.sh" "$INIT_DIR/"
+cp "$TASK_DIR/z-process.sh" "$INIT_DIR/"
 chmod +x "$INIT_DIR/z-process.sh"
+
 
 # Use 'apptainer run' to execute the container's default entrypoint
 apptainer run \
@@ -44,6 +49,7 @@ apptainer run \
     --bind "$DATA_DIR:/var/lib/mysql" \
     --bind "$OUTPUT_DIR:/output" \
     --bind "$CONFIG_FILE:/etc/mysql/conf.d/z-writable-socket.cnf:ro" \
+    --env TABLE_NAME="$TABLE_NAME" \
     --env MARIADB_DATABASE=wikidb \
     --env MARIADB_ROOT_PASSWORD=verysecret \
     "$SIF_FILE"
