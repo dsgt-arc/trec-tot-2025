@@ -1,5 +1,17 @@
 # README
 
+## datasets
+
+We generate the following datasets, relative to `$HOME/trec-tot-2025/data`:
+
+| path                                     | description                                                                                                                                                                              |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `enwiki/parquet/page`                    | Page dataset from wikipedia csv dump                                                                                                                                                     |
+| `enwiki/parquet/pagelinks`               | Pagelinks dataset from wikipedia csv dump                                                                                                                                                |
+| `enwiki/parquet/categorylinks`           | Categorylinks dataset from wikipedia csv dump                                                                                                                                            |
+| `wikidata/processed/id2wikidataid_6m/v1` | Mapping of wikipedia page ids to wikidata ids from the wikidata 6m dataset. This is generated from the json dump that wenxin put together.                                               |
+| `enwiki/processed/edgelist/v1`           | Initial edgelist between articles using the inner-join against the wikidata 6m dataset. The page is filtered to include the main article namespace, and to remove any redirecting pages. |
+
 ## notes
 
 ### Downloading wikipedia data

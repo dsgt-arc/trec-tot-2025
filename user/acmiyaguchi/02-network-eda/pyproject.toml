@@ -1,0 +1,13 @@
+[project]
+name = "02-network-eda"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "pyspark>=3.5.6",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = []

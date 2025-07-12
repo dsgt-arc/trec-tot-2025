@@ -2,8 +2,8 @@
 name = "trec-tot-2025"
 version = "0.1.1"
 authors = [
-    { name = "Anthony Miyaguchi", email = "acmiyaguchi@gatech.edu" }, 
-    {name = "Wenxin Zhou", email = "wenxinmmb@gmail.com" }, 
+    { name = "Anthony Miyaguchi", email = "acmiyaguchi@gatech.edu" },
+    { name = "Wenxin Zhou", email = "wenxinmmb@gmail.com" },
     { name = "Ritesh Mehta", email = "rmehta307@gatech.edu" }
 ]
 description = "DS@GT TREC 2025 Tip-of-the-Tongue Track"
@@ -35,3 +35,5 @@ where = ["."]
 include = ["trec_tot*"]
 namespaces = false
 
+[tool.uv.workspace]
+members = ["user/acmiyaguchi/02-network-eda"]
