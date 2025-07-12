@@ -20,3 +20,13 @@ uv tool install aria2c
 cd download
 ./download-enwiki.sbatch
 ```
+
+### syncing from google drive
+
+I've configured rclone to sync directories to the shared google drive for the project.
+
+```bash
+rclone sync gdrive-trec-tot-2025: $HOME/scratch/trec-tot-2025/data/gdrive
+```
+
+And I can sync the files back if needed too.
