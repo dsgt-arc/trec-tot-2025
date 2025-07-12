@@ -2,6 +2,8 @@ import json
 from glob import glob
 
 run_directory = "../runs/search_result/train/"
+# TODO: make this compatible with generic search results
+
 
 # Step 1: Read all JSON files
 file_paths = glob(f"{run_directory}/results_*.json")
