@@ -1,7 +1,7 @@
 #!/bin/bash
-#SBATCH -Jedgelist --account=paceship-dsgt_clef2025
+#SBATCH -Jcentrality --account=paceship-dsgt_clef2025
 #SBATCH --nodes=1 --ntasks=1 --cpus-per-task=16 --mem=128G
-#SBATCH -t4:00:00 -qembers -ologs/Jedgelist-%j.out
+#SBATCH -t4:00:00 -qembers -ologs/centrality-%j.out
 #SBATCH --mail-type=END,FAIL --mail-user=acmiyaguchi@gatech.edu
 
 set -x

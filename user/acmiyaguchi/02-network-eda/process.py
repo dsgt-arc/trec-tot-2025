@@ -5,7 +5,7 @@
 #   "typer",
 # ]
 # ///
-from pyspark.sql import SparkSession, functions as F
+from pyspark.sql import SparkSession, functions as F, Window
 import typer
 import luigi
 import json
@@ -49,7 +49,14 @@ class GenerateEdgeList(luigi.Task):
     output_path = luigi.Parameter()
 
     def output(self):
-        return luigi.LocalTarget((Path(self.output_path) / "_SUCCESS").as_posix())
+        return {
+            "edges": luigi.LocalTarget(
+                (Path(self.output_path) / "edges/_SUCCESS").as_posix()
+            ),
+            "nodes": luigi.LocalTarget(
+                (Path(self.output_path) / "nodes/_SUCCESS").as_posix()
+            ),
+        }
 
     def run(self):
         spark = get_spark()
@@ -57,7 +64,7 @@ class GenerateEdgeList(luigi.Task):
         pagelinks = spark.read.parquet(self.pagelinks_path)
         id2wd = spark.read.parquet(self.mapping_path)
 
-        page_filtered = (
+        nodes = (
             page.where("page_namespace = 0")
             .where(F.col("page_is_redirect") == "0")
             .join(
@@ -65,23 +72,45 @@ class GenerateEdgeList(luigi.Task):
                 on="page_id",
                 how="inner",
             )
+            .select("page_id", "wikidata_id")
+            .distinct()
+            .withColumn(
+                "node_id",
+                F.row_number().over(Window.orderBy("page_id")) - 1,
+            )
+            .orderBy("node_id")
+        )
+        nodes.repartition(8).write.parquet(
+            (Path(self.output_path) / "nodes").as_posix(), mode="overwrite"
+        )
+        nodes = spark.read.parquet(
+            (Path(self.output_path) / "nodes").as_posix()
         ).cache()
 
-        pagelinks_filtered = (
+        edges = (
             pagelinks.where("pl_from_namespace = 0")
             .join(
-                page_filtered.select(F.col("page_id").alias("pl_from")),
+                nodes.select(
+                    F.col("page_id").alias("pl_from"),
+                    F.col("node_id").alias("src"),
+                ),
                 on="pl_from",
                 how="inner",
             )
             .join(
-                page_filtered.select(F.col("page_id").alias("pl_target_id")),
+                nodes.select(
+                    F.col("page_id").alias("pl_target_id"),
+                    F.col("node_id").alias("dst"),
+                ),
                 on="pl_target_id",
                 how="inner",
             )
+            .select("src", "dst")
+            .distinct()
+            .orderBy("src", "dst")
         )
-        pagelinks_filtered.repartition(32).write.parquet(
-            self.output_path, mode="overwrite"
+        edges.repartition(32).write.parquet(
+            (Path(self.output_path) / "edges").as_posix(), mode="overwrite"
         )
 
 
@@ -102,7 +131,7 @@ class Workflow(luigi.Task):
             mapping_path=(output_root / "id2wikidataid_6m/v1").as_posix(),
             page_path=(parquet_root / "page").as_posix(),
             pagelinks_path=(parquet_root / "pagelinks").as_posix(),
-            output_path=(output_root / "edgelist/v1").as_posix(),
+            output_path=(output_root / "graph/v1").as_posix(),
         )
 
 

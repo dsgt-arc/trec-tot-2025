@@ -36,4 +36,4 @@ include = ["trec_tot*"]
 namespaces = false
 
 [tool.uv.workspace]
-members = ["user/acmiyaguchi/02-network-eda"]
+members = ["user/acmiyaguchi/02-network-eda", "user/acmiyaguchi/03-centrality"]
