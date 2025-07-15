@@ -161,11 +161,13 @@ class ArticleOneHop(luigi.Task):
         )
 
     def run(self):
-        g = self.load_graph()
+        g = self.load_graph().cache()
         motif_edges = self.find_motif(g)
 
-        g_prime = GraphFrame(g.vertices, motif_edges).dropIsolatedVertices()
+        g_prime = GraphFrame(g.vertices, motif_edges).dropIsolatedVertices().cache()
         self.write_graph(g_prime)
+        g.unpersist()
+        g_prime.unpersist()
 
     def find_motif(self, g):
         motif = (
