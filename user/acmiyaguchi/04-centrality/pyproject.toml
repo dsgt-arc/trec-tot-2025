@@ -1,5 +1,5 @@
 [project]
-name = "03-centrality"
+name = "04-centrality"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
