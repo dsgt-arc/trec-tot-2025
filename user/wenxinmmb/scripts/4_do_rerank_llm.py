@@ -3,9 +3,9 @@ import os
 from typing import List, Dict, Any
 import sys
 
-# Add the parent directory to the path to import rerank_openrouter
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from rerank_openrouter import SafeOpenAI
+from rank_llm.rerank.listwise.rank_openai import SafeOpenaiBackend
+from rank_llm.rerank.rankllm import PromptMode
+from rank_llm.data import Request, Query, Candidate, DataWriter
 
 def load_queries(queries_file: str) -> Dict[str, str]:
     """Load queries from JSONL file."""
@@ -13,34 +13,36 @@ def load_queries(queries_file: str) -> Dict[str, str]:
     with open(queries_file, 'r', encoding='utf-8') as f:
         for line in f:
             query_data = json.loads(line.strip())
-            queries[query_data['id']] = query_data['query']
+            queries[query_data['query_id']] = query_data['query']
     return queries
 
-def load_corpus_offset(offset_file: str) -> Dict[str, int]:
+def load_corpus_offset(offset_file: str) -> Dict[str, Dict[str, int]]:
     """Load corpus offset mapping."""
-    offset_map = {}
     with open(offset_file, 'r', encoding='utf-8') as f:
-        for line_num, line in enumerate(f):
-            doc_data = json.loads(line.strip())
-            offset_map[doc_data['id']] = line_num
+        offset_map = json.load(f)
     return offset_map
 
-def get_document_content(doc_id: str, corpus_file: str, offset_map: Dict[str, int]) -> Dict[str, str]:
-    """Get document content from corpus file using offset."""
+def get_document_content(doc_id: str, corpus_file: str,
+                         offset_map: Dict[str, Dict[str, int]]) -> Dict[str, str]:
+    """Get document content from corpus file using byte offsets."""
     if doc_id not in offset_map:
         return {"title": "", "text": ""}
     
-    line_num = offset_map[doc_id]
+    offset_start = offset_map[doc_id]["offset_start"]
+    offset_end = offset_map[doc_id]["offset_end"]
+    
     with open(corpus_file, 'r', encoding='utf-8') as f:
-        for i, line in enumerate(f):
-            if i == line_num:
-                doc_data = json.loads(line.strip())
-                # Truncate text to first 1500 characters
-                text = doc_data.get('text', '')[:1500]
-                return {
-                    "title": doc_data.get('title', ''),
-                    "text": text
-                }
+        f.seek(offset_start)
+        content = f.read(offset_end - offset_start) # TODO: check if this is one off.
+        
+        # Parse the JSON content
+        doc_data = json.loads(content.strip())
+        # Truncate text to first 1500 characters
+        text = doc_data.get('text', '')[:1500]
+        return {
+            "title": doc_data.get('title', ''),
+            "text": text
+        }
     return {"title": "", "text": ""}
 
 def parse_run_file(run_file: str) -> Dict[str, List[str]]:
@@ -77,116 +79,84 @@ def construct_rerank_requests(
         if query_id not in queries:
             print(f"Warning: Query {query_id} not found in queries file")
             continue
-        
-        query_text = queries[query_id]
-        candidates = []
-        
+
+        req = Request(query=Query(text=queries[query_id], qid=query_id),
+                candidates=[])
+
         for doc_id in doc_ids:
             doc_content = get_document_content(doc_id, corpus_file, offset_map)
-            candidate_text = f"{doc_content['title']} {doc_content['text']}"
-            candidates.append({
-                "id": doc_id,
-                "text": candidate_text.strip()
-            })
-        
-        if candidates:
-            rerank_requests.append({
-                "query_id": query_id,
-                "query": query_text,
-                "candidates": candidates
-            })
-    
+            req.candidates.append(
+                Candidate(docid=doc_id, doc={"title": doc_content['title'], "text": doc_content['text']}, score=0.0))
+        if len(req.candidates) == 0:
+            print(f"Warning: No candidates found for query {query_id}")
+        rerank_requests.append(req)
+
     return rerank_requests
 
 def batch_rerank_with_openrouter(rerank_requests: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
-    """Perform batch reranking using OpenRouter Gemini Flash 2.5."""
-    
-    # Initialize SafeOpenAI with OpenRouter Gemini Flash 2.5
-    reranker = SafeOpenAI(
-        model="google/gemini-2.0-flash-exp:free",
-        api_key=os.getenv("OPENROUTER_API_KEY"),
-        base_url="https://openrouter.ai/api/v1",
-        max_tokens=2000
+    """Perform batch reranking using OpenRouter models"""
+
+    # Initialize SafeOpenAI
+    openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
+    print("Using OpenRouter API key:", openrouter_api_key)
+
+    ranker = SafeOpenaiBackend(
+        model="google/gemma-3-27b-it",
+        context_size=8192,
+        keys=[openrouter_api_key],
+        api_base="https://openrouter.ai/api/v1",
+        prompt_template_path="/home/wenxin/project/rank_llm/src/rank_llm/rerank/prompt_templates/rank_lrl_template.yaml" # TODO: do not hardcode this
     )
     
-    results = {}
-    
-    for request in rerank_requests:
-        query_id = request["query_id"]
-        query = request["query"]
-        candidates = request["candidates"]
-        
-        print(f"Reranking query {query_id} with {len(candidates)} candidates...")
-        
-        # Construct rerank prompt
-        prompt = f"""Given the query and a list of candidate documents, rerank the documents based on their relevance to the query. Return the documents in order from most relevant to least relevant.
-
-Query: {query}
-
-Candidates:
-"""
-        
-        for i, candidate in enumerate(candidates):
-            prompt += f"{i+1}. ID: {candidate['id']}\nText: {candidate['text']}\n\n"
-        
-        prompt += """Please rerank these documents based on their relevance to the query. Return the result as a JSON list with the document IDs in order from most relevant to least relevant, like this:
-["doc_id_1", "doc_id_2", "doc_id_3", ...]"""
-        
-        try:
-            # Get reranking from the model
-            response = reranker.generate(prompt)
-            
-            # Parse the response to extract document IDs
-            ranked_ids = json.loads(response.strip())
-            
-            # Create ranked results with scores
-            ranked_results = []
-            for rank, doc_id in enumerate(ranked_ids):
-                score = len(ranked_ids) - rank  # Higher rank = higher score
-                ranked_results.append({
-                    "doc_id": doc_id,
-                    "rank": rank + 1,
-                    "score": score
-                })
-            
-            results[query_id] = ranked_results
-            
-        except Exception as e:
-            print(f"Error reranking query {query_id}: {e}")
-            # Fallback: keep original order
-            ranked_results = []
-            for rank, candidate in enumerate(candidates):
-                ranked_results.append({
-                    "doc_id": candidate["id"],
-                    "rank": rank + 1,
-                    "score": len(candidates) - rank
-                })
-            results[query_id] = ranked_results
-    
+    results = ranker.rerank_batch(rerank_requests,
+                                  populate_invocations_history=True,
+                                  logging=True)
+    print("Ranking results:")
+    for result in results:
+        print(f"Query: {result.query}")
+        for candidate in result.candidates:
+            print(f"  Candidate ID: {candidate.docid}, Score: {candidate.score}, Text: {candidate.doc}")
     return results
 
 def main():
     # File paths
-    run_file = "shared_retrieval_results/gemini-2.5-flash/dev1.run"
-    queries_file = "2025/dev1-2025/queries.jsonl"
-    corpus_file = "corpus.jsonl"
-    offset_file = "corpus-offset"
+    split = "dev3"
+    data_path = "/home/wenxin/project/data/2025"
+    run_file = f"/home/wenxin/project/shared_retrieval_results/gemini-2.5-flash/{split}.run"
+    queries_file = f"{data_path}/{split}-2025/queries.jsonl"
+    corpus_file = f"{data_path}/corpus.jsonl"
+    offset_file = f"{data_path}/corpus-offset-mapping.json"
     
     # Construct rerank requests
-    print("Loading data and constructing rerank requests...")
+    print("Loading data and constructing rerank requests")
     rerank_requests = construct_rerank_requests(run_file, queries_file, corpus_file, offset_file)
+    rerank_requests = rerank_requests[3:5]  # TODO: remove, Limit requests for testing
     print(f"Constructed {len(rerank_requests)} rerank requests")
-    
+
+    print("Example rerank requests:")
+    for req in rerank_requests:
+        print(f"Query ID: {req.query.qid}, Candidates: {[c.docid for c in req.candidates]}")
+        # print the title and text of the first candidate
+        if req.candidates:
+            for candidate in req.candidates[:5]:
+                print(f"  Candidate - ID: {candidate.docid}, Title: {candidate.doc.get('title', '')}, Text: {candidate.doc.get('text', '')[:500]}...")
+        else:
+            print("  No candidates available for this query.")
+
     # Perform batch reranking
-    print("Starting batch reranking...")
-    results = batch_rerank_with_openrouter(rerank_requests)
+    print("Starting batch reranking")
+    rerank_results = batch_rerank_with_openrouter(rerank_requests)
     
     # Save results
-    output_file = "reranked_results.json"
-    with open(output_file, 'w', encoding='utf-8') as f:
-        json.dump(results, f, indent=2, ensure_ascii=False)
-    
-    print(f"Reranking completed. Results saved to {output_file}")
+    print("Starting save output")
+    writer = DataWriter(rerank_results)
+    # create output directory if it doesn't exist
+    os.makedirs("outputs", exist_ok=True)
+    writer.write_in_jsonl_format(f"outputs/rerank_results.jsonl")
+    writer.write_in_trec_eval_format(f"outputs/rerank_results.txt")
+    writer.write_inference_invocations_history(
+        f"outputs/inference_invocations_history.json"
+    )
 
 if __name__ == "__main__":
     main()
