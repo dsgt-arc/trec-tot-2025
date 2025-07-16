@@ -5,5 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.8"
 dependencies = [
+    "faiss-cpu>=1.8.0.post1",
     "huggingface-hub[cli]>=0.33.4",
+    "pyspark>=3.5.6",
 ]
