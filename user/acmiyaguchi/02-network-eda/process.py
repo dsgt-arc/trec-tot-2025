@@ -15,7 +15,7 @@ from pathlib import Path
 app = typer.Typer()
 
 
-def get_spark(cores=24, memory="190g", shuffle_partitions=2000):
+def get_spark(cores=24, memory="190g", shuffle_partitions=4000):
     spark = (
         SparkSession.builder.master(f"local[{cores}]")
         .config("spark.driver.memory", memory)
@@ -124,6 +124,9 @@ class ArticleOneHop(luigi.Task):
     links_path = luigi.Parameter()
     output_path = luigi.Parameter()
 
+    node_partitions = 8
+    edge_partitions = 32
+
     def output(self):
         return {
             "edges": luigi.LocalTarget(
@@ -133,6 +136,13 @@ class ArticleOneHop(luigi.Task):
                 (Path(self.output_path) / "nodes/_SUCCESS").as_posix()
             ),
         }
+
+    def filter_vertex_edge(self, v, e):
+        num_partitions = 200
+        v = v.repartition(num_partitions)
+        e = e.repartition(num_partitions)
+
+        return v, e
 
     def load_graph(self):
         spark = get_spark()
@@ -147,16 +157,17 @@ class ArticleOneHop(luigi.Task):
         e = pagelinks.select(
             F.col("pl_from").alias("src"), F.col("pl_target_id").alias("dst")
         ).distinct()
+        v, e = self.filter_vertex_edge(v, e)
 
         return GraphFrame(v, e)
 
     def write_graph(self, g):
         g.edges.explain(extended=True)
-        g.edges.repartition(32).write.parquet(
+        g.edges.repartition(self.edge_partitions).write.parquet(
             (Path(self.output_path) / "edges").as_posix(), mode="overwrite"
         )
         g.vertices.explain(extended=True)
-        g.vertices.repartition(8).write.parquet(
+        g.vertices.repartition(self.node_partitions).write.parquet(
             (Path(self.output_path) / "nodes").as_posix(), mode="overwrite"
         )
 
@@ -195,11 +206,35 @@ class ArticleMetaTwoHop(ArticleOneHop):
         )
 
 
-class ArticleSharedTarget(ArticleOneHop):
+class ArticleMetaSharedTarget(ArticleOneHop):
+    def filter_vertex_edge(self, v, e):
+        # in the set of edges, we make sure that at least one end is an article
+        # to avoid a combinatorial explosion. However we still want to allow
+        # us to traverse across meta pages.
+        article_set = (
+            v.where("page_namespace = 0 and page_is_redirect = false")
+            .select("id")
+            .cache()
+        )
+        left = e.join(
+            article_set.select(F.col("id").alias("src")), on="src", how="inner"
+        )
+        right = e.join(
+            article_set.select(F.col("id").alias("dst")), on="dst", how="inner"
+        )
+        e = left.union(right).distinct().repartition(1000, "src")
+        article_set.unpersist()
+        v = v.repartition(1000)
+        return v, e
+
     def find_motif(self, g):
+        # we have to filter out the case where b is an article. An article
+        # like ww2 or some other very large in-degree article will cause
+        # the cross-product to explode. Even with that, we still run into errors...
         motif = (
             g.find("(a)-[]->(b); (c)-[]->(b)")
             .where("a.id != c.id")
+            .where("b.page_namespace != 0")
             .where("a.page_namespace = 0 and a.page_is_redirect = false")
             .where("c.page_namespace = 0 and c.page_is_redirect = false")
         )
@@ -217,7 +252,21 @@ class ArticleSharedTarget(ArticleOneHop):
         )
 
 
-class ArticleCategorySharedTarget(ArticleSharedTarget):
+class ArticleCategorySharedTarget(ArticleMetaSharedTarget):
+    edge_partitions = 200
+
+    def filter_vertex_edge(self, v, e):
+        # we can easily filter out extra categories we dont need
+        article_set = v.where("page_namespace = 0 and page_is_redirect = false").select(
+            "id"
+        )
+        # the dst is always a category, so we don't really care honestly
+        e = e.join(
+            article_set.select(F.col("id").alias("src")), on="src", how="inner"
+        ).repartition(1000, "src")
+        v = v.repartition(1000)
+        return v, e
+
     def load_graph(self):
         spark = get_spark()
         page = spark.read.parquet(self.page_path)
@@ -228,9 +277,15 @@ class ArticleCategorySharedTarget(ArticleSharedTarget):
             "page_namespace",
             (F.col("page_is_redirect") != "0").alias("page_is_redirect"),
         )
-        e = categorylinks.select(
-            F.col("cl_from").alias("src"), F.col("cl_target_id").alias("dst")
-        ).distinct()
+        e = (
+            categorylinks.select(
+                F.col("cl_from").alias("src"),
+                F.col("cl_target_id").try_cast("integer").alias("dst"),
+            )
+            .where("dst is not null")
+            .distinct()
+        )
+        v, e = self.filter_vertex_edge(v, e)
 
         return GraphFrame(v, e)
 
@@ -265,24 +320,29 @@ class Workflow(luigi.Task):
                 links_path=(parquet_root / "pagelinks").as_posix(),
                 output_path=(output_root / "graph/v2/article-meta-two-hop").as_posix(),
             ),
-            ArticleSharedTarget(
-                page_path=(parquet_root / "page").as_posix(),
-                links_path=(parquet_root / "pagelinks").as_posix(),
-                output_path=(output_root / "graph/v2/article-shared-target").as_posix(),
-            ),
-            ArticleCategorySharedTarget(
-                page_path=(parquet_root / "page").as_posix(),
-                links_path=(parquet_root / "categorylinks").as_posix(),
-                output_path=(
-                    output_root / "graph/v2/article-category-shared-target"
-                ).as_posix(),
-            ),
+            # NOTE: this needs to be reimplemented via LSH in order to be viable
+            # ArticleMetaSharedTarget(
+            #     page_path=(parquet_root / "page").as_posix(),
+            #     links_path=(parquet_root / "pagelinks").as_posix(),
+            #     output_path=(
+            #         output_root / "graph/v2/article-meta-shared-target"
+            #     ).as_posix(),
+            # ),
+            # NOTE: there are annoying issues with the target id not being a viable
+            # integer
+            # ArticleCategorySharedTarget(
+            #     page_path=(parquet_root / "page").as_posix(),
+            #     links_path=(parquet_root / "categorylinks").as_posix(),
+            #     output_path=(
+            #         output_root / "graph/v2/article-category-shared-target"
+            #     ).as_posix(),
+            # ),
         ]
 
 
 @app.command()
 def run():
-    luigi.build([Workflow()], local_scheduler=True)
+    assert luigi.build([Workflow()], local_scheduler=True)
 
 
 if __name__ == "__main__":

@@ -6,4 +6,5 @@
 
 set -x
 cd ${SLURM_SUBMIT_DIR:-$(dirname "$0")}
+export SPARK_LOCAL_DIRS=$HOME/scratch/spark-tmp
 uv run process.py
