@@ -1,10 +1,8 @@
 import json
 import os
 from typing import List, Dict, Any
-import sys
 
 from rank_llm.rerank.listwise.rank_openai import SafeOpenaiBackend
-from rank_llm.rerank.rankllm import PromptMode
 from rank_llm.data import Request, Query, Candidate, DataWriter
 
 def load_queries(queries_file: str) -> Dict[str, str]:
@@ -33,7 +31,7 @@ def get_document_content(doc_id: str, corpus_file: str,
     
     with open(corpus_file, 'r', encoding='utf-8') as f:
         f.seek(offset_start)
-        content = f.read(offset_end - offset_start) # TODO: check if this is one off.
+        content = f.read(offset_end - offset_start)
         
         # Parse the JSON content
         doc_data = json.loads(content.strip())
@@ -64,7 +62,9 @@ def construct_rerank_requests(
     run_file: str,
     queries_file: str,
     corpus_file: str,
-    offset_file: str
+    offset_file: str,
+    range_start: int,
+    range_end: int
 ) -> List[Dict[str, Any]]:
     """Construct rerank requests from run file and related data."""
     
@@ -72,10 +72,12 @@ def construct_rerank_requests(
     queries = load_queries(queries_file)
     offset_map = load_corpus_offset(offset_file)
     query_docs = parse_run_file(run_file)
-    
+
     rerank_requests = []
-    
-    for query_id, doc_ids in query_docs.items():
+
+    partial_query_docs = {k: query_docs[k] for k in list(query_docs.keys())[range_start:range_end]}
+
+    for query_id, doc_ids in partial_query_docs.items():
         if query_id not in queries:
             print(f"Warning: Query {query_id} not found in queries file")
             continue
@@ -102,6 +104,7 @@ def batch_rerank_with_openrouter(rerank_requests: List[Dict[str, Any]]) -> Dict[
 
     ranker = SafeOpenaiBackend(
         model="google/gemma-3-27b-it",
+        # model="google/gemma-3-12b-it",
         context_size=8192,
         keys=[openrouter_api_key],
         api_base="https://openrouter.ai/api/v1",
@@ -109,39 +112,34 @@ def batch_rerank_with_openrouter(rerank_requests: List[Dict[str, Any]]) -> Dict[
     )
     
     results = ranker.rerank_batch(rerank_requests,
-                                  populate_invocations_history=True,
-                                  logging=True)
-    print("Ranking results:")
-    for result in results:
-        print(f"Query: {result.query}")
-        for candidate in result.candidates:
-            print(f"  Candidate ID: {candidate.docid}, Score: {candidate.score}, Text: {candidate.doc}")
+                                  populate_invocations_history=False,
+                                  logging=False,
+                                  rank_end=1000)
     return results
 
 def main():
     # File paths
     split = "dev3"
+    retrieval_model = 'gemini-2.5-flash'
+    output_dir = "outputs/gemini-gemma-27B"
     data_path = "/home/wenxin/project/data/2025"
-    run_file = f"/home/wenxin/project/shared_retrieval_results/gemini-2.5-flash/{split}.run"
+    range_start = 5
+    range_end = 100
+    range = f'{range_start}-{range_end}'
+
+    run_file = f"/home/wenxin/project/shared_retrieval_results/{retrieval_model}/{split}.run"
     queries_file = f"{data_path}/{split}-2025/queries.jsonl"
     corpus_file = f"{data_path}/corpus.jsonl"
     offset_file = f"{data_path}/corpus-offset-mapping.json"
-    
+
+    # create output directory if it doesn't exist
+    os.makedirs(output_dir, exist_ok=True)
+
     # Construct rerank requests
     print("Loading data and constructing rerank requests")
-    rerank_requests = construct_rerank_requests(run_file, queries_file, corpus_file, offset_file)
-    rerank_requests = rerank_requests[3:5]  # TODO: remove, Limit requests for testing
+    rerank_requests = construct_rerank_requests(run_file, queries_file, corpus_file, offset_file, range_start, range_end)
+    rerank_requests = rerank_requests
     print(f"Constructed {len(rerank_requests)} rerank requests")
-
-    print("Example rerank requests:")
-    for req in rerank_requests:
-        print(f"Query ID: {req.query.qid}, Candidates: {[c.docid for c in req.candidates]}")
-        # print the title and text of the first candidate
-        if req.candidates:
-            for candidate in req.candidates[:5]:
-                print(f"  Candidate - ID: {candidate.docid}, Title: {candidate.doc.get('title', '')}, Text: {candidate.doc.get('text', '')[:500]}...")
-        else:
-            print("  No candidates available for this query.")
 
     # Perform batch reranking
     print("Starting batch reranking")
@@ -150,12 +148,11 @@ def main():
     # Save results
     print("Starting save output")
     writer = DataWriter(rerank_results)
-    # create output directory if it doesn't exist
-    os.makedirs("outputs", exist_ok=True)
-    writer.write_in_jsonl_format(f"outputs/rerank_results.jsonl")
-    writer.write_in_trec_eval_format(f"outputs/rerank_results.txt")
+
+    writer.write_in_jsonl_format(f"{output_dir}/rerank-results-{range}.jsonl")
+    writer.write_in_trec_eval_format(f"{output_dir}/rerank-results-{range}.txt")
     writer.write_inference_invocations_history(
-        f"outputs/inference_invocations_history.json"
+        f"{output_dir}/inference_invocations_history-{range}.json"
     )
 
 if __name__ == "__main__":
