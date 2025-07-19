@@ -1,10 +1,12 @@
 # /// script
 # dependencies = [
-#   "polars",
+#   "pyspark",
 #   "numpy",
+#   "pandas",
 #   "faiss-cpu",
 #   "luigi",
 #   "typer",
+#   "tqdm"
 # ]
 # ///
 import typer
@@ -12,14 +14,18 @@ import luigi
 from pathlib import Path
 from pyspark.sql import SparkSession, functions as F
 import numpy as np
+import faiss
+import pandas as pd
+import tqdm
 
 app = typer.Typer()
 
 
-def get_spark(cores=24, memory="190g"):
+def get_spark(cores=24, memory="80g"):
     spark = (
         SparkSession.builder.master(f"local[{cores}]")
         .config("spark.driver.memory", memory)
+        .config("spark.driver.maxResultSize", "0")
         .getOrCreate()
     )
     return spark
@@ -50,6 +56,42 @@ class AverageEmbeddingsTask(luigi.Task):
         spark.stop()
 
 
+class FaissPCAIndexTask(luigi.Task):
+    """We create a FAISS index that uses PCA to reduce the dimensionality of the embeddings.
+    This will help with making indexing a bit more efficient.
+    """
+
+    input_root = luigi.Parameter()
+    output_root = luigi.Parameter()
+    dim_input = luigi.IntParameter(default=1024)
+    dim_pca = luigi.IntParameter(default=384)
+
+    def output(self):
+        return {
+            "pca": luigi.LocalTarget(f"{self.output_root}/pca.bin"),
+            "eigenvalues": luigi.LocalTarget(f"{self.output_root}/eigenvalues.npy"),
+        }
+
+    def _load(self):
+        spark = get_spark()
+        df = spark.read.parquet(self.input_root).select("embedding").toPandas()
+        spark.stop()
+        return np.stack(df["embedding"].values).astype("float32")
+
+    def run(self):
+        X = self._load()
+
+        # normalize for PCA
+        faiss.normalize_L2(X)
+        pca = faiss.PCAMatrix(self.dim_input, self.dim_pca)
+        pca.train(X)
+
+        # write out the PCA matrix
+        v = faiss.vector_float_to_array(pca.eigenvalues)
+        np.save(self.output()["eigenvalues"].path, v)
+        faiss.write_VectorTransform(pca, self.output()["pca"].path)
+
+
 class FaissCosineIndexTask(luigi.Task):
     """We create a FAISS index that uses cosine similarity.
     First we need to normalize the vectors to unit length.
@@ -57,11 +99,53 @@ class FaissCosineIndexTask(luigi.Task):
     Because we are projecting using PCA, we will also need to normalize after that projection.
     """
 
+    input_root = luigi.Parameter()
+    output_root = luigi.Parameter()
+    dim_pca = luigi.IntParameter(default=384)
+
+    def requires(self):
+        return FaissPCAIndexTask(
+            input_root=self.input_root,
+            output_root=self.output_root,
+            dim_pca=self.dim_pca,
+        )
+
     def output(self):
-        return luigi.LocalTarget("faiss_cosine_index_output.json")
+        return {"index": luigi.LocalTarget(f"{self.output_root}/faiss.index")}
+
+    def _load_parts(self):
+        parts = sorted(Path(self.input_root).glob("*.parquet"))
+        for part in tqdm.tqdm(parts):
+            df = pd.read_parquet(part)
+            yield (
+                np.stack(df["embedding"].values).astype("float32"),
+                df["page_id"].values.astype("int64"),
+            )
+
+    def _get_index(self):
+        dim_pca = self.requires()["pca"].dim_pca
+        dim_input = self.requires()["pca"].dim_input
+        pca_matrix = faiss.read_VectorTransform(self.input()["pca"].path)
+        # input -> normalize -> pca -> normalize -> index
+        index = faiss.IndexIDMap(
+            faiss.IndexPreTransform(
+                faiss.NormalizationTransform(dim_input, 2.0),
+                faiss.IndexPreTransform(
+                    pca_matrix,
+                    faiss.IndexPreTransform(
+                        faiss.NormalizationTransform(dim_pca, 2.0),
+                        faiss.IndexFlatIP(dim_pca),
+                    ),
+                ),
+            )
+        )
+        return index
 
     def run(self):
-        raise NotImplementedError()
+        index = self._get_index()
+        for X, page_ids in self._load_parts():
+            index.add_with_ids(X, page_ids)
+        faiss.write_index(index, self.output()["index"].path)
 
 
 class Workflow(luigi.Task):
@@ -73,6 +157,11 @@ class Workflow(luigi.Task):
         yield AverageEmbeddingsTask(
             input_root=str(emb_root),
             output_root=str(emb_avg_root),
+        )
+        yield FaissCosineIndexTask(
+            input_root=str(emb_avg_root),
+            output_root=str(root / "enwiki/faiss/bge-m3-avg/v1"),
+            dim_pca=384,
         )
 
 
