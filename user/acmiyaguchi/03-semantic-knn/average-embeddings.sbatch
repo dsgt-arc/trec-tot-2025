@@ -39,4 +39,3 @@ emb_avg = (
 )
 emb_avg.write.parquet(out_root.as_posix(), mode="overwrite")
 EOF
-done

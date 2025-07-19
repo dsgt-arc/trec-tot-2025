@@ -28,6 +28,11 @@ df = spark.read.parquet("$BASE_DIR/parquet/pagelinks")
 df.printSchema()
 df.show(n=5)
 print(f"Number of rows: {df.count()}")
-df.groupBy("pl_from_namespace").count().orderBy("pl_from_namespace").show(n=100, truncate=False)
+(
+    df
+    .groupBy("pl_from_namespace")
+    .count()
+    .orderBy("pl_from_namespace")
+).show(n=100, truncate=False)
 EOF
 done
