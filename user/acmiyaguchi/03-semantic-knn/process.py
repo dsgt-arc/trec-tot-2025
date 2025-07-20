@@ -66,6 +66,7 @@ class FaissPCAIndexTask(luigi.Task):
     output_root = luigi.Parameter()
     dim_input = luigi.IntParameter(default=1024)
     dim_pca = luigi.IntParameter(default=384)
+    should_sample = luigi.BoolParameter(default=True)
 
     def output(self):
         return {
@@ -76,7 +77,9 @@ class FaissPCAIndexTask(luigi.Task):
     def _load(self):
         spark = get_spark()
         df = spark.read.parquet(self.input_root).select("embedding")
-        df = df.sample(fraction=0.2, seed=42)
+        if self.should_sample:
+            print("sampling 20% of the data for PCA training")
+            df = df.sample(fraction=0.2, seed=42)
         df.explain()
         df = df.toPandas()
         spark.stop()
@@ -157,6 +160,61 @@ class FaissCosineIndexTask(luigi.Task):
         faiss.write_index(index, self.output()["index"].path)
 
 
+class FaissKNNQueryTask(luigi.Task):
+    input_root = luigi.Parameter()
+    output_root = luigi.Parameter()
+    dim_pca = luigi.IntParameter(default=384)
+    k = luigi.IntParameter(default=50)
+
+    def requires(self):
+        return {
+            "index": FaissCosineIndexTask(
+                input_root=self.input_root,
+                output_root=self.output_root,
+                dim_pca=self.dim_pca,
+            )
+        }
+
+    def _load_parts(self):
+        parts = sorted(Path(self.input_root).glob("*.parquet"))
+        for part in tqdm.tqdm(parts):
+            df = pd.read_parquet(part)
+            yield (
+                part.name,
+                np.stack(df["embedding"].values).astype("float32"),
+                df["page_id"].values.astype("int64"),
+            )
+
+    def _get_index(self):
+        index_task = self.requires()["index"]
+        index = faiss.read_index(index_task.output()["index"].path)
+        return index
+
+    def output(self):
+        return {"knn": luigi.LocalTarget(f"{self.output_root}/knn/_SUCCESS")}
+
+    def run(self):
+        index = self._get_index()
+
+        output_dir = Path(self.output()["knn"].path).parent
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        for part_name, X, page_ids in self._load_parts():
+            scores, neighbors = index.search(X, self.k)
+            results_df = pd.DataFrame(
+                {
+                    "page_id": page_ids,
+                    "neighbors": list(neighbors),
+                    "scores": list(scores),
+                }
+            )
+            output_path = output_dir / part_name
+            results_df.to_parquet(output_path, index=False)
+
+        with self.output()["knn"].open("w") as f:
+            f.write("")
+
+
 class Workflow(luigi.Task):
     def run(self):
         root = Path("~/scratch/trec-tot-2025/data").expanduser()
@@ -167,10 +225,11 @@ class Workflow(luigi.Task):
             input_root=str(emb_root),
             output_root=str(emb_avg_root),
         )
-        yield FaissCosineIndexTask(
+        yield FaissKNNQueryTask(
             input_root=str(emb_avg_root),
             output_root=str(root / "enwiki/faiss/bge-m3-avg/v1"),
             dim_pca=384,
+            k=50,
         )
 
 
