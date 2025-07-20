@@ -3,6 +3,7 @@
 #   "pyspark",
 #   "numpy",
 #   "pandas",
+#   "pyarrow",
 #   "faiss-cpu",
 #   "luigi",
 #   "typer",
@@ -74,7 +75,10 @@ class FaissPCAIndexTask(luigi.Task):
 
     def _load(self):
         spark = get_spark()
-        df = spark.read.parquet(self.input_root).select("embedding").toPandas()
+        df = spark.read.parquet(self.input_root).select("embedding")
+        df = df.sample(fraction=0.2, seed=42)
+        df.explain()
+        df = df.toPandas()
         spark.stop()
         return np.stack(df["embedding"].values).astype("float32")
 
@@ -88,6 +92,7 @@ class FaissPCAIndexTask(luigi.Task):
 
         # write out the PCA matrix
         v = faiss.vector_float_to_array(pca.eigenvalues)
+        Path(self.output_root).mkdir(parents=True, exist_ok=True)
         np.save(self.output()["eigenvalues"].path, v)
         faiss.write_VectorTransform(pca, self.output()["pca"].path)
 
@@ -104,11 +109,13 @@ class FaissCosineIndexTask(luigi.Task):
     dim_pca = luigi.IntParameter(default=384)
 
     def requires(self):
-        return FaissPCAIndexTask(
-            input_root=self.input_root,
-            output_root=self.output_root,
-            dim_pca=self.dim_pca,
-        )
+        return {
+            "pca": FaissPCAIndexTask(
+                input_root=self.input_root,
+                output_root=self.output_root,
+                dim_pca=self.dim_pca,
+            )
+        }
 
     def output(self):
         return {"index": luigi.LocalTarget(f"{self.output_root}/faiss.index")}
@@ -123,9 +130,10 @@ class FaissCosineIndexTask(luigi.Task):
             )
 
     def _get_index(self):
-        dim_pca = self.requires()["pca"].dim_pca
-        dim_input = self.requires()["pca"].dim_input
-        pca_matrix = faiss.read_VectorTransform(self.input()["pca"].path)
+        pca_task = self.requires()["pca"]
+        dim_pca = pca_task.dim_pca
+        dim_input = pca_task.dim_input
+        pca_matrix = faiss.read_VectorTransform(pca_task.output()["pca"].path)
         # input -> normalize -> pca -> normalize -> index
         index = faiss.IndexIDMap(
             faiss.IndexPreTransform(
@@ -145,6 +153,7 @@ class FaissCosineIndexTask(luigi.Task):
         index = self._get_index()
         for X, page_ids in self._load_parts():
             index.add_with_ids(X, page_ids)
+        Path(self.output_root).mkdir(parents=True, exist_ok=True)
         faiss.write_index(index, self.output()["index"].path)
 
 
