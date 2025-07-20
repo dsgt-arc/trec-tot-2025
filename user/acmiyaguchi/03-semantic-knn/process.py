@@ -165,6 +165,8 @@ class FaissKNNQueryTask(luigi.Task):
     output_root = luigi.Parameter()
     dim_pca = luigi.IntParameter(default=384)
     k = luigi.IntParameter(default=50)
+    current_shard = luigi.IntParameter(default=-1)
+    total_shards = luigi.IntParameter(default=16)
 
     def requires(self):
         return {
@@ -175,8 +177,18 @@ class FaissKNNQueryTask(luigi.Task):
             )
         }
 
-    def _load_parts(self):
+    def _shard_parts(self):
         parts = sorted(Path(self.input_root).glob("*.parquet"))
+        if self.current_shard == -1:
+            for part in parts:
+                yield part
+        else:
+            for i, part in enumerate(parts):
+                if i % self.total_shards == self.current_shard:
+                    yield part
+
+    def _load_parts(self):
+        parts = list(self._shard_parts())
         for part in tqdm.tqdm(parts):
             df = pd.read_parquet(part)
             yield (
@@ -191,15 +203,21 @@ class FaissKNNQueryTask(luigi.Task):
         return index
 
     def output(self):
-        return {"knn": luigi.LocalTarget(f"{self.output_root}/knn/_SUCCESS")}
+        return [
+            luigi.LocalTarget(f"{self.output_root}/knn/{part.name}")
+            for part in self._shard_parts()
+        ]
 
     def run(self):
         index = self._get_index()
 
-        output_dir = Path(self.output()["knn"].path).parent
+        output_dir = Path(self.output()[0].path).parent
         output_dir.mkdir(parents=True, exist_ok=True)
 
         for part_name, X, page_ids in self._load_parts():
+            output_path = output_dir / part_name
+            if output_path.exists():
+                continue
             scores, neighbors = index.search(X, self.k)
             results_df = pd.DataFrame(
                 {
@@ -208,11 +226,7 @@ class FaissKNNQueryTask(luigi.Task):
                     "scores": list(scores),
                 }
             )
-            output_path = output_dir / part_name
             results_df.to_parquet(output_path, index=False)
-
-        with self.output()["knn"].open("w") as f:
-            f.write("")
 
 
 class Workflow(luigi.Task):
@@ -225,17 +239,23 @@ class Workflow(luigi.Task):
             input_root=str(emb_root),
             output_root=str(emb_avg_root),
         )
-        yield FaissKNNQueryTask(
-            input_root=str(emb_avg_root),
-            output_root=str(root / "enwiki/faiss/bge-m3-avg/v1"),
-            dim_pca=384,
-            k=50,
-        )
+        parts = 16
+        yield [
+            FaissKNNQueryTask(
+                input_root=str(emb_avg_root),
+                output_root=str(root / "enwiki/faiss/bge-m3-avg/v1"),
+                dim_pca=384,
+                k=50,
+                current_shard=i,
+                total_shards=parts,
+            )
+            for i in range(parts)
+        ]
 
 
 @app.command()
 def run():
-    assert luigi.build([Workflow()], local_scheduler=True)
+    assert luigi.build([Workflow()], local_scheduler=True, workers=8)
 
 
 if __name__ == "__main__":
