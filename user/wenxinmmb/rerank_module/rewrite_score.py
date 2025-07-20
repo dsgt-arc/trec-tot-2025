@@ -65,7 +65,6 @@ def reformat_trec_file(input_file, output_file):
             output_line = f"{query_id}\t{q0}\t{doc_id}\t{rank}\t{new_score}\t{run_name}"
             outfile.write(output_line + "\n")
 
-
 def main():
     parser = argparse.ArgumentParser(description="Reformat TREC result files")
     parser.add_argument("input_file", help="Input TREC result file")
@@ -89,16 +88,10 @@ def main():
         else:
             # Add -reformatted.txt to the existing filename
             output_path = input_path.parent / f"{input_path.name}-reformatted.txt"
-    
-    print(f"Reformatting {input_path} -> {output_path}")
-    
-    try:
-        reformat_trec_file(input_path, output_path)
-        print(f"Successfully reformatted file. Output saved to: {output_path}")
-    except Exception as e:
-        print(f"Error processing file: {e}")
-        sys.exit(1)
 
+    print(f"Reformatting {input_path} -> {output_path}")
+    reformat_trec_file(input_path, output_path)
+    print(f"Successfully reformatted file. Output saved to: {output_path}")
 
 if __name__ == "__main__":
     main()
