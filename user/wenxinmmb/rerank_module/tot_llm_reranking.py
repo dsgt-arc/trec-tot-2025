@@ -1,5 +1,81 @@
+"""
+TREC ToT LLM Reranking Script
+
+This script performs neural reranking of TREC retrieval results using Large Language Models (LLMs).
+It takes first-stage retrieval results (TREC run file) and reranks the documents using an LLM
+to improve retrieval quality.
+
+Key Features:
+1. **Resumable Processing**: The script processes queries one at a time and maintains a checkpoint
+   file to track progress. If interrupted, it can resume from where it left off without 
+   reprocessing already completed queries.
+
+2. **Dual API Support**: 
+   - Local Ollama: Default mode for running local LLM models (e.g., Gemma, Llama)
+   - OpenRouter: Cloud-based API access to various LLM providers when using --use-openrouter flag
+
+3. **Incremental Output**: Results are written immediately after each query is processed,
+   ensuring no data loss during long-running experiments.
+
+4. **Configurable History**: Optional inference invocation history can be saved for debugging
+   and analysis purposes using --save-invocations-history flag.
+
+Input Requirements:
+- TREC run file: First-stage retrieval results for the queries in the queries file
+- Queries file: JSONL format with query_id and query text
+- Corpus file: JSONL format with document content
+- Offset mapping: JSON file for efficient document lookup
+
+Queries file and corpus file can be downloaded from
+https://trec-tot.github.io/guidelines
+
+Offset mapping file `corpus-offset-mapping.json` can be downloaded from the shared Google Drive folder:
+https://drive.google.com/drive/u/0/folders/1IGHLJHGxbZ
+
+Output Files:
+- rerank-results.jsonl: Reranked results in JSONL format
+- rerank-results.txt: Reranked results in TREC eval format
+- checkpoint.json: Progress tracking for resumable execution
+- inference_invocations_history.json: Optional API call history
+
+Usage Examples:
+
+1. Basic usage with local Ollama:
+   python tot_llm_reranking.py \
+     --input-trec-run "shared_retrieval_results/gemini-2.5-flash/dev3.run" \
+     --queries-file "2025/dev3-2025/queries.jsonl" \
+     --corpus-file "2025/corpus.jsonl" \
+     --offset-file "corpus-offset-mapping.json" \
+     --output-dir "outputs/gemma3-12b-rerank"
+
+2. Using OpenRouter with a different model:
+   export OPENROUTER_API_KEY="your-api-key-here"
+   python tot_llm_reranking.py \
+     --input-trec-run "shared_retrieval_results/bge-passage-dense/dev3.run" \
+     --queries-file "2025/dev3-2025/queries.jsonl" \
+     --corpus-file "2025/corpus.jsonl" \
+     --offset-file "corpus-offset-mapping.json" \
+     --output-dir "outputs/gemma-3-27b-rerank" \
+     --use-openrouter \
+     --model "google/gemma-3-27b-it" \
+     --save-invocations-history
+
+3. Custom local model with debugging:
+   python tot_llm_reranking.py \
+     --input-trec-run "shared_retrieval_results/pyterrier-bm25/dev3.run" \
+     --queries-file "2025/dev3-2025/queries.jsonl" \
+     --corpus-file "2025/corpus.jsonl" \
+     --offset-file "corpus-offset-mapping.json" \
+     --output-dir "outputs/llama3-8b-rerank" \
+     --model "llama3:8b" \
+     --api-url "http://localhost:8080/v1" \
+     --save-invocations-history
+"""
+
 import json
 import os
+import argparse
+import datetime
 from typing import List, Dict, Any
 
 from rank_llm.rerank.listwise.rank_openai import SafeOpenaiBackend
@@ -62,9 +138,7 @@ def construct_rerank_requests(
     run_file: str,
     queries_file: str,
     corpus_file: str,
-    offset_file: str,
-    range_start: int,
-    range_end: int
+    offset_file: str
 ) -> List[Dict[str, Any]]:
     """Construct rerank requests from run file and related data."""
     
@@ -75,9 +149,7 @@ def construct_rerank_requests(
 
     rerank_requests = []
 
-    partial_query_docs = {k: query_docs[k] for k in list(query_docs.keys())[range_start:range_end]}
-
-    for query_id, doc_ids in partial_query_docs.items():
+    for query_id, doc_ids in query_docs.items():
         if query_id not in queries:
             print(f"Warning: Query {query_id} not found in queries file")
             continue
@@ -95,62 +167,142 @@ def construct_rerank_requests(
 
     return rerank_requests
 
-def batch_rerank_with_openrouter(rerank_requests: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
-    """Perform batch reranking using openai API compatible models"""
+def batch_rerank_with_openrouter(rerank_requests: List[Dict[str, Any]], 
+                                  model: str, 
+                                  api_base: str,
+                                  api_keys: List[str],
+                                  output_dir: str,
+                                  save_invocations_history: bool) -> None:
+    """Perform batch reranking using openai API compatible models, processing one at a time"""
 
     ranker = SafeOpenaiBackend(
-        model="gemma3:12b",
+        model=model,
         context_size=8192,
-        keys=['ollama'], # not validated for local model
-        api_base="http://localhost:11434/v1",
+        keys=api_keys, # API keys for the service
+        api_base=api_base,
         prompt_template_path="rank_llm/src/rank_llm/rerank/prompt_templates/rank_lrl_template.yaml" # TODO: do not hardcode this
     )
     
-    # TODO: break this down to smaller batches and write results incrementally
-    # to avoid memory issues.
-    results = ranker.rerank_batch(rerank_requests,
-                                  populate_invocations_history=True, # Change to True if you want more information for debugging
-                                  logging=False,
-                                  rank_end=1000)
-    return results
+    # Load checkpoint if exists
+    checkpoint_file = os.path.join(output_dir, "checkpoint.json")
+    processed_queries = set()
+    if os.path.exists(checkpoint_file):
+        with open(checkpoint_file, 'r') as f:
+            checkpoint_data = json.load(f)
+            processed_queries = set(checkpoint_data.get('processed_queries', []))
+            print(f"Resuming from checkpoint. Already processed {len(processed_queries)} queries.")
+    
+    # Process each request individually
+    for i, request in enumerate(rerank_requests):
+        query_id = request.query.qid
+
+        # Skip if already processed
+        if query_id in processed_queries:
+            print(f"Skipping query {query_id} (already processed)")
+            continue
+
+        print(f"Processing query {i+1}/{len(rerank_requests)}: {query_id}")
+
+        try:
+            # Process single request
+            results = ranker.rerank_batch([request],
+                                        populate_invocations_history=save_invocations_history,
+                                        logging=False,
+                                        rank_end=1000)
+            
+            # Write results immediately
+            writer = DataWriter(results, append=True)
+            writer.write_in_jsonl_format(f"{output_dir}/rerank-results.jsonl")
+            writer.write_in_trec_eval_format(f"{output_dir}/rerank-results.txt")
+            
+            # Only write invocations history if requested
+            if save_invocations_history:
+                writer.write_inference_invocations_history(f"{output_dir}/inference_invocations_history.json")
+            
+            # Update checkpoint
+            processed_queries.add(query_id)
+            checkpoint_data = {
+                'processed_queries': list(processed_queries),
+                'last_processed_query': query_id,
+                'total_processed': len(processed_queries),
+                'timestamp': datetime.datetime.now().isoformat()
+            }
+            
+            with open(checkpoint_file, 'w') as f:
+                json.dump(checkpoint_data, f, indent=2)
+                
+            print(f"Successfully processed query {query_id}")
+            
+        except Exception as e:
+            print(f"Error processing query {query_id}: {str(e)}")
+            # Continue with next query instead of failing completely
+            continue
 
 def main():
-    # File paths
-    split = "dev3"
-    retrieval_model = 'gemini-2.5-flash'
-    output_dir = "outputs/ollama-gemini-gemma-12B"
-    data_path = "/home/wenxin/project/data/2025"
-    range_start = 1
-    range_end = 5
-    range = f'{range_start}-{range_end}'
+    parser = argparse.ArgumentParser(description='TREC ToT LLM Reranking Script')
+    parser.add_argument('--input-trec-run', type=str, required=True,
+                        help='Path to the TREC run file which contains the first stage retrieval results, i.e "shared_retrieval_results/gemini-2.5-flash/dev3.run"')
+    parser.add_argument('--queries-file', type=str, required=True,
+                        help='Path to the queries JSONL file, i.e "2025/dev3-2025/queries.jsonl"')
+    parser.add_argument('--corpus-file', type=str, required=True,
+                        help='Path to the corpus JSONL file, i.e "2025/dev3-2025/corpus.jsonl"')
+    parser.add_argument('--offset-file', type=str, required=True,
+                        help='Path to the corpus offset mapping JSON file. Download the `corpus-offset-mapping.json` file from the shared google drive data folder https://drive.google.com/drive/u/0/folders/1IGHLJHGxbZ-P4xnpTc2OpDnoWiDClYxp.')
+    parser.add_argument('--output-dir', type=str, required=True,
+                        help='Output directory for results')
+    parser.add_argument('--model', type=str, default='gemma3:12b',
+                        help='Model name for reranking (default: gemma3:12b)')
+    parser.add_argument('--api-url', type=str, default='http://localhost:11434/v1',
+                        help='API base URL (default: http://localhost:11434/v1)')
+    parser.add_argument('--use-openrouter', action='store_true', default=False,
+                        help='Use OpenRouter API instead of local Ollama (default: False)')
+    parser.add_argument('--save-invocations-history', action='store_true', default=False,
+                        help='Save inference invocations history (default: False)')
+    
+    args = parser.parse_args()
 
-    run_file = f"/home/wenxin/project/shared_retrieval_results/{retrieval_model}/{split}.run"
-    queries_file = f"{data_path}/{split}-2025/queries.jsonl"
-    corpus_file = f"{data_path}/corpus.jsonl"
-    offset_file = f"{data_path}/corpus-offset-mapping.json"
+    # Configure API settings based on OpenRouter flag
+    if args.use_openrouter:
+        api_base = "https://openrouter.ai/api/v1"
+        api_key = os.getenv("OPENROUTER_API_KEY")
+        if not api_key:
+            raise ValueError("OPENROUTER_API_KEY environment variable is required when using --use-openrouter")
+        api_keys = [api_key]
+        print("Using OpenRouter API")
+    else:
+        api_base = args.api_url
+        api_keys = ['ollama'] # the key is not validated for local model
+        print(f"Using local API at {api_base}")
+
+    # File paths from command line arguments
+    run_file = args.input_trec_run
+    queries_file = args.queries_file
+    corpus_file = args.corpus_file
+    offset_file = args.offset_file
+    output_dir = args.output_dir
 
     # create output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
 
     # Construct rerank requests
     print("Loading data and constructing rerank requests")
-    rerank_requests = construct_rerank_requests(run_file, queries_file, corpus_file, offset_file, range_start, range_end)
-    rerank_requests = rerank_requests
+    rerank_requests = construct_rerank_requests(run_file, queries_file, corpus_file, offset_file)
     print(f"Constructed {len(rerank_requests)} rerank requests")
 
     # Perform batch reranking
     print("Starting batch reranking")
-    rerank_results = batch_rerank_with_openrouter(rerank_requests)
+    batch_rerank_with_openrouter(rerank_requests, 
+                                 args.model, 
+                                 api_base,
+                                 api_keys,
+                                 output_dir,
+                                 args.save_invocations_history)
     
-    # Save results
-    print("Starting save output")
-    writer = DataWriter(rerank_results, append=True)
-
-    writer.write_in_jsonl_format(f"{output_dir}/rerank-results-{range}.jsonl")
-    writer.write_in_trec_eval_format(f"{output_dir}/rerank-results-{range}.txt")
-    writer.write_inference_invocations_history(
-        f"{output_dir}/inference_invocations_history-{range}.json"
-    )
+    print("Reranking completed successfully!")
+    print(f"Results saved in {output_dir}/rerank-results.jsonl and {output_dir}/rerank-results.txt")
+    if args.save_invocations_history:
+        print(f"Invocations history saved in {output_dir}/inference_invocations_history.json")
+    print(f"Checkpoint saved in {output_dir}/checkpoint.json")
 
 if __name__ == "__main__":
     main()
