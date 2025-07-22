@@ -1,0 +1,3 @@
+[submodule "user/acmiyaguchi/10-ollama/ollama-benchmark"]
+	path = user/acmiyaguchi/10-ollama/ollama-benchmark
+	url = git@github.com:larryhopecode/ollama-benchmark.git
