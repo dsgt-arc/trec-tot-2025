@@ -255,7 +255,7 @@ class Workflow(luigi.Task):
 
 @app.command()
 def run():
-    assert luigi.build([Workflow()], local_scheduler=True, workers=8)
+    assert luigi.build([Workflow()], local_scheduler=True, workers=4, log_level="INFO")
 
 
 if __name__ == "__main__":
