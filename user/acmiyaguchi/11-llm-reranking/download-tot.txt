@@ -1,0 +1,11 @@
+https://zenodo.org/records/15356599/files/train-2025-queries.jsonl
+https://zenodo.org/records/15356599/files/train-2025-qrel.txt
+https://zenodo.org/records/15356599/files/dev1-2025-queries.jsonl
+https://zenodo.org/records/15356599/files/dev1-2025-qrel.txt
+https://zenodo.org/records/15356599/files/dev2-2025-queries.jsonl
+https://zenodo.org/records/15356599/files/dev2-2025-qrel.txt
+https://zenodo.org/records/15356599/files/dev3-2025-queries.jsonl
+https://zenodo.org/records/15356599/files/dev3-2025-qrel.txt
+https://zenodo.org/records/15869078/files/test-2025-queries.jsonl
+https://zenodo.org/records/15356599/files/trec-tot-2025-corpus.jsonl.gz
+https://zenodo.org/records/15356599/files/trec-tot-2025-offsets.jsonl.gz

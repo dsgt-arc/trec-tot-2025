@@ -36,4 +36,9 @@ include = ["trec_tot*"]
 namespaces = false
 
 [tool.uv.workspace]
-members = ["user/acmiyaguchi/02-network-eda", "user/acmiyaguchi/04-centrality", "user/acmiyaguchi/03-semantic-knn"]
+members = [
+    "user/acmiyaguchi/02-network-eda",
+    "user/acmiyaguchi/04-centrality",
+    "user/acmiyaguchi/03-semantic-knn",
+    "user/acmiyaguchi/11-llm-reranking"
+]
