@@ -65,7 +65,7 @@ class ComputePageRank(luigi.Task, SharedParams):
         edges = pl.read_parquet(f"{self.edges_path}/*.parquet")
         graph, mapping_df = load_graph_data_remapped(edges)
         with contexttimer.Timer() as t:
-            score = rx.pagerank(graph, max_iter=250, tol=1.0e-8)
+            score = rx.pagerank(graph, max_iter=100, tol=1.0e-8)
         print(f"PageRank computed in {t.elapsed:.2f} seconds", flush=True)
         pr_df = (
             pl.DataFrame({"idx": score.keys(), "pagerank": score.values()})
@@ -83,7 +83,7 @@ class ComputeHITS(luigi.Task, SharedParams):
         edges = pl.read_parquet(f"{self.edges_path}/*.parquet")
         graph, mapping_df = load_graph_data_remapped(edges)
         with contexttimer.Timer() as t:
-            hubs, authorities = rx.hits(graph, max_iter=250, tol=1.0e-8)
+            hubs, authorities = rx.hits(graph, max_iter=100, tol=1.0e-8)
         print(f"HITS computed in {t.elapsed:.2f} seconds", flush=True)
         hubs_df = pl.DataFrame({"idx": hubs.keys(), "hub": hubs.values()})
         auth_df = pl.DataFrame(
@@ -166,7 +166,7 @@ class Workflow(luigi.Task):
         trec_root = Path("~/scratch/trec-tot-2025").expanduser()
         dataset_root = trec_root / "data/enwiki/processed"
 
-        suffix = "bge-m3-knn"
+        suffix = "bge-m3-knn-k10"
         graph_root = dataset_root / "graph/v2" / suffix
         output_root = dataset_root / "centrality/v2" / suffix
         output_root.mkdir(parents=True, exist_ok=True)
