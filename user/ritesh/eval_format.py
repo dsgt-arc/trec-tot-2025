@@ -27,6 +27,6 @@ def jsonl_to_trec_runfile(jsonl_path, trec_output_path, run_id="runid1"):
 
 
 if __name__ == "__main__":
-    jsonl_path = "/workspace/miniLM_dev3_top_k_results.jsonl"
-    trec_output_path = "/workspace/miniLM_dev3_top_k_results.trec"
+    jsonl_path = "/root/trec-tot-2025/user/ritesh/results/miniLM_dev1_top_k_results_reranked_bge_base.jsonl"
+    trec_output_path = "/root/trec-tot-2025/user/ritesh/results/miniLM_dev1_top_k_results_reranked_bge_base.trec"
     jsonl_to_trec_runfile(jsonl_path, trec_output_path)
