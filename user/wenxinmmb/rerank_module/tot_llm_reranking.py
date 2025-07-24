@@ -172,7 +172,8 @@ def batch_rerank_with_openrouter(rerank_requests: List[Dict[str, Any]],
                                   api_base: str,
                                   api_keys: List[str],
                                   output_dir: str,
-                                  save_invocations_history: bool) -> None:
+                                  save_invocations_history: bool,
+                                  prompt_template_path: str = "rank_llm/src/rank_llm/rerank/prompt_templates/rank_lrl_template.yaml") -> None:
     """Perform batch reranking using openai API compatible models, processing one at a time"""
 
     ranker = SafeOpenaiBackend(
@@ -180,7 +181,7 @@ def batch_rerank_with_openrouter(rerank_requests: List[Dict[str, Any]],
         context_size=8192,
         keys=api_keys, # API keys for the service
         api_base=api_base,
-        prompt_template_path="rank_llm/src/rank_llm/rerank/prompt_templates/rank_lrl_template.yaml" # TODO: do not hardcode this
+        prompt_template_path=prompt_template_path
     )
     
     # Load checkpoint if exists
@@ -258,6 +259,8 @@ def main():
                         help='Use OpenRouter API instead of local Ollama (default: False)')
     parser.add_argument('--save-invocations-history', action='store_true', default=False,
                         help='Save inference invocations history (default: False)')
+    parser.add_argument('--prompt-template-path', type=str, default="rank_llm/src/rank_llm/rerank/prompt_templates/rank_lrl_template.yaml",
+                        help='Path to the prompt template YAML file (default: rank_llm/src/rank_llm/rerank/prompt_templates/rank_lrl_template.yaml)')
     
     args = parser.parse_args()
 
@@ -296,7 +299,8 @@ def main():
                                  api_base,
                                  api_keys,
                                  output_dir,
-                                 args.save_invocations_history)
+                                 args.save_invocations_history,
+                                 prompt_template_path=args.prompt_template_path)
     
     print("Reranking completed successfully!")
     print(f"Results saved in {output_dir}/rerank-results.jsonl and {output_dir}/rerank-results.txt")
