@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -xe
 salloc \
-    --account=paceship-dsgt_clef2025 \
+    --account=paceship-dsgt_trec2025 \
     --gres=gpu:1 \
     --constraint=RTX6000 \
     --qos=embers \

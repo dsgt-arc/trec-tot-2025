@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH -Jdownload-embeddings --account=paceship-dsgt_clef2025
+#SBATCH -Jdownload-embeddings --account=paceship-dsgt_trec2025
 #SBATCH --nodes=1 --ntasks=1 --cpus-per-task=8 --mem=32G
 #SBATCH -t4:00:00 -qembers -ologs/download-%j.out
 #SBATCH --mail-type=END,FAIL --mail-user=acmiyaguchi@gatech.edu

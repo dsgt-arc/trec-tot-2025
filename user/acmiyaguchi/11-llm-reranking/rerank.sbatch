@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH -Jrerank --account=paceship-dsgt_clef2025
+#SBATCH -Jrerank --account=paceship-dsgt_trec2025
 #SBATCH --nodes=1 --gres=gpu:1 --constraint=RTX6000 --cpus-per-task=6 --mem-per-gpu=64G
 #SBATCH -t4:00:00 -qembers -ologs/rerank-%j.out
 #SBATCH --mail-type=START,END,FAIL --mail-user=acmiyaguchi@gatech.edu

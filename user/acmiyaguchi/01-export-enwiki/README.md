@@ -26,11 +26,11 @@ sbatch process.sbatch categorylinks
 ```
 $ ls -alh $HOME/scratch/trec-tot-2025/data/enwiki/csv/
 total 66G
-drwxr-xr-x. 2 amiyaguchi3 pace-ps-dsgt_clef2025 4.0K Jul 11 03:29 .
-drwxr-xr-x. 6 amiyaguchi3 pace-ps-dsgt_clef2025 4.0K Jul 11 21:29 ..
--rw-r--r--. 1 amiyaguchi3 pace-ps-dsgt_clef2025  30G Jul 11 04:06 categorylinks.csv
--rw-r--r--. 1 amiyaguchi3 pace-ps-dsgt_clef2025 6.4G Jul 11 03:27 page.csv
--rw-r--r--. 1 amiyaguchi3 pace-ps-dsgt_clef2025  30G Jul 11 04:16 pagelinks.csv
+drwxr-xr-x. 2 amiyaguchi3 pace-ps-dsgt_trec2025 4.0K Jul 11 03:29 .
+drwxr-xr-x. 6 amiyaguchi3 pace-ps-dsgt_trec2025 4.0K Jul 11 21:29 ..
+-rw-r--r--. 1 amiyaguchi3 pace-ps-dsgt_trec2025  30G Jul 11 04:06 categorylinks.csv
+-rw-r--r--. 1 amiyaguchi3 pace-ps-dsgt_trec2025 6.4G Jul 11 03:27 page.csv
+-rw-r--r--. 1 amiyaguchi3 pace-ps-dsgt_trec2025  30G Jul 11 04:16 pagelinks.csv
 ```
 
 These are some really big datasets.

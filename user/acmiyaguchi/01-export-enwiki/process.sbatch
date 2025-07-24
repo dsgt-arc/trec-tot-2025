@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH -Jexport-enwiki --account=paceship-dsgt_clef2025
+#SBATCH -Jexport-enwiki --account=paceship-dsgt_trec2025
 #SBATCH --nodes=1 --ntasks=1 --cpus-per-task=2 --mem=32G
 #SBATCH -t24:00:00 -qinferno -ologs/export-enwiki-%j.out
 #SBATCH --mail-type=END,FAIL --mail-user=acmiyaguchi@gatech.edu

@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH -Jeval --account=paceship-dsgt_clef2025
+#SBATCH -Jeval --account=paceship-dsgt_trec2025
 #SBATCH --nodes=1 --ntasks=1 --cpus-per-task=4 --mem-per-cpu=4G
 #SBATCH -t4:00:00 -qembers -ologs/eval-%j.out
 #SBATCH --mail-type=START,END,FAIL --mail-user=acmiyaguchi@gatech.edu
