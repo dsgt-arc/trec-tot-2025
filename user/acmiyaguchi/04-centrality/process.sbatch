@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH -Jcentrality --account=paceship-dsgt_trec2025
-#SBATCH --nodes=1 --ntasks=1 --cpus-per-task=16 --mem=128G
+#SBATCH --nodes=1 --ntasks=1 --cpus-per-task=24 --mem=192G
 #SBATCH -t4:00:00 -qembers -ologs/centrality-%j.out
 #SBATCH --mail-type=END,FAIL --mail-user=acmiyaguchi@gatech.edu
 
