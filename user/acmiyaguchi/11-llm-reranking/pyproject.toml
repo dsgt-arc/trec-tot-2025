@@ -13,4 +13,4 @@ where = ["."]
 include = []
 
 [tool.uv.sources]
-rank-llm = { git = "https://github.com/acmiyaguchi/rank_llm.git" }
+rank-llm = { git = "https://github.com/wenxinmmb/rank_llm.git" }
