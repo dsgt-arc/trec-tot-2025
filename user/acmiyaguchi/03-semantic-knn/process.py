@@ -258,7 +258,7 @@ class ProcessGraphTask(luigi.Task):
                 F.col("neighbor.scores").alias("score"),
                 F.col("pos").alias("rank"),
             )
-            .where(F.col("rank") < self.num_neighbors)
+            .where(F.col("rank") <= self.num_neighbors)
             .where("src != dst")
         )
         if self.source_is_target:
@@ -300,6 +300,7 @@ class Workflow(luigi.Task):
                 input_root=str(emb_avg_root),
                 output_root=str(root / "enwiki/faiss/bge-m3-avg/v1"),
                 dim_pca=384,
+                # sadly, this is off by one because of self-loops
                 k=50,
                 current_shard=i,
                 total_shards=parts,
@@ -307,14 +308,16 @@ class Workflow(luigi.Task):
             for i in range(parts)
         ]
         yield [
-            # ProcessGraphTask(
-            #     input_root=str(root / "enwiki/faiss/bge-m3-avg/v1/knn"),
-            #     output_root=str(root / "enwiki/processed/graph/v2/bge-m3-knn"),
-            # ),
             ProcessGraphTask(
                 input_root=str(root / "enwiki/faiss/bge-m3-avg/v1/knn"),
                 output_root=str(root / "enwiki/processed/graph/v2/bge-m3-knn-k10"),
                 num_neighbors=10,
+                source_is_target=True,
+            ),
+            ProcessGraphTask(
+                input_root=str(root / "enwiki/faiss/bge-m3-avg/v1/knn"),
+                output_root=str(root / "enwiki/processed/graph/v2/bge-m3-knn-k15"),
+                num_neighbors=15,
                 source_is_target=True,
             ),
         ]

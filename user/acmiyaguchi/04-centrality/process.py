@@ -30,14 +30,14 @@ def get_mapping_df(edges: pl.DataFrame) -> pl.DataFrame:
     return mapping_df
 
 
-def load_graph_data(nodes, edges):
+def load_graph_data(nodes: pl.DataFrame, edges: pl.DataFrame) -> rx.PyDiGraph:
     graph = rx.PyDiGraph()
     _ = graph.add_nodes_from(tqdm.tqdm(nodes.sort(by="idx").select("idx").to_series()))
-    _ = graph.add_edges_from_no_data(tqdm.tqdm(edges.iter_rows(), total=len(edges)))
+    _ = graph.add_edges_from(tqdm.tqdm(edges.iter_rows(), total=len(edges)))
     return graph
 
 
-def load_graph_data_remapped(edges):
+def load_graph_data_remapped(edges: pl.DataFrame) -> tuple[rx.PyDiGraph, pl.DataFrame]:
     """Load graph data from edges DataFrame with remapped indices."""
     mapping_df = get_mapping_df(edges)
     remapped_edges = (
@@ -45,7 +45,13 @@ def load_graph_data_remapped(edges):
         .rename({"idx": "src_idx"})
         .join(mapping_df, left_on="dst", right_on="id")
         .rename({"idx": "dst_idx"})
-        .select([pl.col("src_idx").alias("src"), pl.col("dst_idx").alias("dst")])
+        .select(
+            [
+                pl.col("src_idx").alias("src"),
+                pl.col("dst_idx").alias("dst"),
+                pl.col("score").alias("weight"),
+            ]
+        )
     )
     nodes = mapping_df.select("idx")
     return load_graph_data(nodes, remapped_edges), mapping_df
@@ -65,7 +71,7 @@ class ComputePageRank(luigi.Task, SharedParams):
         edges = pl.read_parquet(f"{self.edges_path}/*.parquet")
         graph, mapping_df = load_graph_data_remapped(edges)
         with contexttimer.Timer() as t:
-            score = rx.pagerank(graph, max_iter=100, tol=1.0e-8)
+            score = rx.pagerank(graph, max_iter=200, tol=1.0e-8)
         print(f"PageRank computed in {t.elapsed:.2f} seconds", flush=True)
         pr_df = (
             pl.DataFrame({"idx": score.keys(), "pagerank": score.values()})
@@ -166,33 +172,41 @@ class Workflow(luigi.Task):
         trec_root = Path("~/scratch/trec-tot-2025").expanduser()
         dataset_root = trec_root / "data/enwiki/processed"
 
-        suffix = "bge-m3-knn-k10"
-        graph_root = dataset_root / "graph/v2" / suffix
-        output_root = dataset_root / "centrality/v2" / suffix
-        output_root.mkdir(parents=True, exist_ok=True)
+        tasks = []
 
-        yield [
-            ComputePageRank(
-                nodes_path=(graph_root / "nodes").as_posix(),
-                edges_path=(graph_root / "edges").as_posix(),
-                output_path=(output_root / "pagerank.parquet").as_posix(),
-            ),
-            ComputeHITS(
-                nodes_path=(graph_root / "nodes").as_posix(),
-                edges_path=(graph_root / "edges").as_posix(),
-                output_path=(output_root / "hits.parquet").as_posix(),
-            ),
-            ComputeDegreeCentrality(
-                nodes_path=(graph_root / "nodes").as_posix(),
-                edges_path=(graph_root / "edges").as_posix(),
-                output_path=(output_root / "degree_centrality.parquet").as_posix(),
-            ),
-            ComputeDegree(
-                nodes_path=(graph_root / "nodes").as_posix(),
-                edges_path=(graph_root / "edges").as_posix(),
-                output_path=(output_root / "degree.parquet").as_posix(),
-            ),
-        ]
+        for suffix in ["bge-m3-knn-k10", "bge-m3-knn-k15"]:
+            graph_root = dataset_root / "graph/v2" / suffix
+            output_root = dataset_root / "centrality/v2" / suffix
+            output_root.mkdir(parents=True, exist_ok=True)
+
+            tasks.extend(
+                [
+                    ComputePageRank(
+                        nodes_path=(graph_root / "nodes").as_posix(),
+                        edges_path=(graph_root / "edges").as_posix(),
+                        output_path=(output_root / "pagerank.parquet").as_posix(),
+                    ),
+                    # HITS apparently doesn't want to converge on the larger knn graph
+                    # ComputeHITS(
+                    #     nodes_path=(graph_root / "nodes").as_posix(),
+                    #     edges_path=(graph_root / "edges").as_posix(),
+                    #     output_path=(output_root / "hits.parquet").as_posix(),
+                    # ),
+                    ComputeDegreeCentrality(
+                        nodes_path=(graph_root / "nodes").as_posix(),
+                        edges_path=(graph_root / "edges").as_posix(),
+                        output_path=(
+                            output_root / "degree_centrality.parquet"
+                        ).as_posix(),
+                    ),
+                    ComputeDegree(
+                        nodes_path=(graph_root / "nodes").as_posix(),
+                        edges_path=(graph_root / "edges").as_posix(),
+                        output_path=(output_root / "degree.parquet").as_posix(),
+                    ),
+                ]
+            )
+        yield tasks
 
 
 @app.command()

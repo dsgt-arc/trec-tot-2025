@@ -7,6 +7,8 @@
 set -xe
 export SPARK_LOCAL_DIRS="$TMPDIR"
 
+SUFFIX=${1:-"bge-m3-knn-k10"}
+
 uv run - <<EOF
 # /// script
 # dependencies = [
@@ -27,7 +29,7 @@ trec_root = Path("~/scratch/trec-tot-2025").expanduser()
 dataset_root = trec_root / "data/enwiki/processed"
 parquet_root = trec_root / "data/enwiki/parquet"
 
-suffix = "bge-m3-knn-k10"
+suffix = "${SUFFIX}"
 page = spark.read.parquet((parquet_root / "page").as_posix())
 nodes = spark.read.parquet((dataset_root / "graph/v2/bge-m3-knn/nodes").as_posix())
 pagerank = spark.read.parquet(
