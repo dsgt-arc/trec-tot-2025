@@ -40,7 +40,7 @@ Output Files:
 
 Usage Examples:
 
-1. Basic usage with local Ollama:
+1. Basic usage with local Ollama (processes all queries):
    python tot_llm_reranking.py \
      --input-trec-run "shared_retrieval_results/gemini-2.5-flash/dev3.run" \
      --queries-file "2025/dev3-2025/queries.jsonl" \
@@ -60,7 +60,7 @@ Usage Examples:
      --model "google/gemma-3-27b-it" \
      --save-invocations-history
 
-3. Custom local model with debugging:
+3. Custom local model with limited number of queries:
    python tot_llm_reranking.py \
      --input-trec-run "shared_retrieval_results/pyterrier-bm25/dev3.run" \
      --queries-file "2025/dev3-2025/queries.jsonl" \
@@ -69,6 +69,7 @@ Usage Examples:
      --output-dir "outputs/llama3-8b-rerank" \
      --model "llama3:8b" \
      --api-url "http://localhost:8080/v1" \
+     --num-queries 50 \
      --save-invocations-history
 """
 
@@ -77,6 +78,7 @@ import os
 import argparse
 import datetime
 from typing import List, Dict, Any
+from tqdm import tqdm
 
 from rank_llm.rerank.listwise.rank_openai import SafeOpenaiBackend
 from rank_llm.data import Request, Query, Candidate, DataWriter
@@ -138,7 +140,8 @@ def construct_rerank_requests(
     run_file: str,
     queries_file: str,
     corpus_file: str,
-    offset_file: str
+    offset_file: str,
+    num_queries: int = None
 ) -> List[Dict[str, Any]]:
     """Construct rerank requests from run file and related data."""
     
@@ -149,7 +152,13 @@ def construct_rerank_requests(
 
     rerank_requests = []
 
-    for query_id, doc_ids in query_docs.items():
+    # Process all queries by default, or limit to specified number if provided
+    if num_queries is not None:
+        partial_query_docs = {k: query_docs[k] for k in list(query_docs.keys())[:num_queries]}
+    else:
+        partial_query_docs = query_docs
+
+    for query_id, doc_ids in partial_query_docs.items():
         if query_id not in queries:
             print(f"Warning: Query {query_id} not found in queries file")
             continue
@@ -194,7 +203,7 @@ def batch_rerank_with_openrouter(rerank_requests: List[Dict[str, Any]],
             print(f"Resuming from checkpoint. Already processed {len(processed_queries)} queries.")
     
     # Process each request individually
-    for i, request in enumerate(rerank_requests):
+    for i, request in enumerate(tqdm(rerank_requests, desc="Processing queries")):
         query_id = request.query.qid
 
         # Skip if already processed
@@ -226,6 +235,8 @@ def batch_rerank_with_openrouter(rerank_requests: List[Dict[str, Any]],
                 'processed_queries': list(processed_queries),
                 'last_processed_query': query_id,
                 'total_processed': len(processed_queries),
+                'model': model,
+                'api_base': api_base,
                 'timestamp': datetime.datetime.now().isoformat()
             }
             
@@ -261,6 +272,8 @@ def main():
                         help='Save inference invocations history (default: False)')
     parser.add_argument('--prompt-template-path', type=str, default="rank_llm/src/rank_llm/rerank/prompt_templates/rank_lrl_template.yaml",
                         help='Path to the prompt template YAML file (default: rank_llm/src/rank_llm/rerank/prompt_templates/rank_lrl_template.yaml)')
+    parser.add_argument('--num-queries', type=int, default=None,
+                        help='Number of queries to process for reranking (default: process all queries)')
     
     args = parser.parse_args()
 
@@ -289,7 +302,7 @@ def main():
 
     # Construct rerank requests
     print("Loading data and constructing rerank requests")
-    rerank_requests = construct_rerank_requests(run_file, queries_file, corpus_file, offset_file)
+    rerank_requests = construct_rerank_requests(run_file, queries_file, corpus_file, offset_file, args.num_queries)
     print(f"Constructed {len(rerank_requests)} rerank requests")
 
     # Perform batch reranking
