@@ -9,7 +9,11 @@ set -ex
 # module load ollama/0.6.6
 module load ollama
 
-MODEL=${MODEL:-"gemma3:12b"}
+# gemma3:12b
+# mistral-nemo:12b
+# qwen3:14b
+MODEL=${MODEL:-"mistral-nemo:12b"}
+OUTPUT_SUFFIX=gemini-2.5-flash-dev3-${MODEL//:/-}-rerank-v1
 
 # start ollama in the background
 ollama serve &
@@ -23,7 +27,6 @@ official_path=$HOME/scratch/trec-tot-2025/data/official
 gdrive_path=$HOME/scratch/trec-tot-2025/data/gdrive/data
 output_path=$HOME/scratch/trec-tot-2025/results/rerank
 
-OUTPUT_SUFFIX=gemini-2.5-flash-dev3-gemma3-12b-rerank-v3.1
 # check if rerank-results already exist and exit early
 if [ -f "$output_path/$OUTPUT_SUFFIX/rerank-results.txt" ]; then
 	echo "Rerank results already exist. Exiting."
