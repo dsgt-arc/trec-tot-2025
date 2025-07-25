@@ -13,18 +13,23 @@ official_path=$HOME/scratch/trec-tot-2025/data/official
 gdrive_path=$HOME/scratch/trec-tot-2025/data/gdrive/data
 output_path=$HOME/scratch/trec-tot-2025/results/rerank
 
-# gemini results
-trec_eval \
-	-m ndcg_cut.10,1000 \
-	-m recall.1000 	\
-	-m recip_rank \
-	$official_path/dev3-2025-qrel.txt \
-	$gdrive_path/shared_retrieval_results/gemini-2.5-flash/dev3.run
+function run_trec_eval {
+	local run_file=$1
+	local qrel_file=$2
+	trec_eval \
+		-m ndcg_cut.10,1000 \
+		-m recall.1000 \
+		-m recip_rank \
+		$qrel_file \
+		$run_file
+}
+
+echo "original results"
+run_trec_eval \
+	$gdrive_path/shared_retrieval_results/gemini-2.5-flash/dev3.run \
+	$official_path/dev3-2025-qrel.txt
 
 echo "reranked results"
-trec_eval \
-	-m ndcg_cut.10,1000 \
-	-m recall.1000 	\
-	-m recip_rank \
-	$official_path/dev3-2025-qrel.txt \
-	$output_path/gemini-2.5-flash-dev3-gemma3-12b-rerank/rerank-results-reformatted.txt
+run_trec_eval \
+	$output_path/gemini-2.5-flash-dev3-gemma3-12b-rerank-v2/rerank-results-reformatted.txt \
+	$official_path/dev3-2025-qrel.txt

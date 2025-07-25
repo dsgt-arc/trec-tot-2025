@@ -8,11 +8,13 @@ source $HOME/trec-tot-2025/.venv/bin/activate
 set -ex
 module load ollama
 
+MODEL=${MODEL:-"gemma3:12b"}
+
 # start ollama in the background
 ollama serve &
 sleep 10  # wait for ollama to start
 ollama_pid=$!
-ollama pull gemma3:12b
+ollama pull $MODEL
 
 script_parent_path=$HOME/trec-tot-2025/user/acmiyaguchi/11-llm-reranking
 rerank_path=$HOME/trec-tot-2025/user/wenxinmmb/rerank_module
@@ -26,10 +28,13 @@ python $rerank_path/tot_llm_reranking.py \
     --corpus-file $official_path/trec-tot-2025-corpus.jsonl \
     --offset-file $gdrive_path/corpus-offset-mapping.json \
     --prompt-template-path $script_parent_path/rank_lrl_template.yaml \
-    --output-dir $output_path/gemini-2.5-flash-dev3-gemma3-12b-rerank
+    --model $MODEL \
+    --save-invocations-history \
+    --num-queries 100 \
+    --output-dir $output_path/gemini-2.5-flash-dev3-gemma3-12b-rerank-v2
 
 python $rerank_path/rewrite_score.py \
-    $output_path/gemini-2.5-flash-dev3-gemma3-12b-rerank/rerank-results.txt
+    $output_path/gemini-2.5-flash-dev3-gemma3-12b-rerank-v2/rerank-results.txt
 
 # now kill ollama and exit
 kill $ollama_pid
