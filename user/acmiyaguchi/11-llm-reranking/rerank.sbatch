@@ -22,6 +22,8 @@ official_path=$HOME/scratch/trec-tot-2025/data/official
 gdrive_path=$HOME/scratch/trec-tot-2025/data/gdrive/data
 output_path=$HOME/scratch/trec-tot-2025/results/rerank
 
+OUTPUT_SUFFIX=gemini-2.5-flash-dev3-gemma3-12b-rerank-v3
+
 python $rerank_path/tot_llm_reranking.py \
     --input-trec-run $gdrive_path/shared_retrieval_results/gemini-2.5-flash/dev3.run \
     --queries-file $official_path/dev3-2025-queries.jsonl \
@@ -31,11 +33,32 @@ python $rerank_path/tot_llm_reranking.py \
     --model $MODEL \
     --save-invocations-history \
     --num-queries 100 \
-    --output-dir $output_path/gemini-2.5-flash-dev3-gemma3-12b-rerank-v2
+    --output-dir $output_path/$OUTPUT_SUFFIX
 
-python $rerank_path/rewrite_score.py \
-    $output_path/gemini-2.5-flash-dev3-gemma3-12b-rerank-v2/rerank-results.txt
-
-# now kill ollama and exit
+# now kill ollama
 kill $ollama_pid
+
+python $rerank_path/rewrite_score.py $output_path/$OUTPUT_SUFFIX/rerank-results.txt
+
+function run_trec_eval {
+	local run_file=$1
+	local qrel_file=$2
+	trec_eval \
+		-m ndcg_cut.10,1000 \
+		-m recall.1000 \
+		-m recip_rank \
+		$qrel_file \
+		$run_file
+}
+
+echo "original results"
+run_trec_eval \
+	$gdrive_path/shared_retrieval_results/gemini-2.5-flash/dev3.run \
+	$official_path/dev3-2025-qrel.txt
+
+echo "reranked results"
+run_trec_eval \
+	$output_path/$OUTPUT_SUFFIX/rerank-results-reformatted.txt \
+	$official_path/dev3-2025-qrel.txt
+
 exit 0
