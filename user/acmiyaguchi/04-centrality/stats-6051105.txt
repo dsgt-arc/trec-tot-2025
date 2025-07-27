@@ -1,0 +1,435 @@
+---------------------------------------
+Begin Slurm Prolog: Jul-25-2025 02:42:02
+Job ID:    6051105
+User ID:   amiyaguchi3
+Account:   paceship-dsgt_trec2025
+Job name:  stats
+Partition: cpu-small
+QOS:       embers
+---------------------------------------
++ export SPARK_LOCAL_DIRS=/tmp
++ SPARK_LOCAL_DIRS=/tmp
++ SUFFIX=bge-m3-knn-k15
++ uv run -
+WARNING: Using incubator modules: jdk.incubator.vector
+Using Spark's default log4j profile: org/apache/spark/log4j2-defaults.properties
+Setting default log level to "WARN".
+To adjust logging level use sc.setLogLevel(newLevel). For SparkR, use setLogLevel(newLevel).
+25/07/25 02:42:06 WARN NativeCodeLoader: Unable to load native-hadoop library for your platform... using builtin-java classes where applicable
+[Stage 5:>    (0 + 5) / 5][Stage 6:>  (0 + 11) / 14][Stage 7:>   (0 + 0) / 32][Stage 5:=>   (1 + 4) / 5][Stage 6:>  (4 + 10) / 14][Stage 7:>   (0 + 0) / 32][Stage 5:=>   (1 + 4) / 5][Stage 6:==>(11 + 3) / 14][Stage 7:>   (0 + 0) / 32][Stage 5:==>  (2 + 3) / 5][Stage 6:==>(13 + 1) / 14][Stage 7:>   (0 + 0) / 32][Stage 7:>   (0 + 6) / 32][Stage 8:>    (1 + 7) / 8][Stage 9:==>(10 + 3) / 13][Stage 7:>                 (0 + 9) / 32][Stage 8:==>                (1 + 7) / 8][Stage 7:>                (0 + 10) / 32][Stage 8:====>              (2 + 6) / 8][Stage 7:>                (0 + 13) / 32][Stage 8:===========>       (5 + 3) / 8][Stage 7:>                                                        (0 + 16) / 32][Stage 7:=>                                                       (1 + 16) / 32][Stage 7:===>                                                     (2 + 16) / 32][Stage 7:================>                                        (9 + 16) / 32][Stage 7:==========================>                             (15 + 16) / 32][Stage 7:============================>                           (16 + 16) / 32][Stage 7:===============================>                        (18 + 14) / 32][Stage 7:======================================>                 (22 + 10) / 32][Stage 7:=======================================================> (31 + 1) / 32][Stage 15:>                                                      (0 + 16) / 200][Stage 15:=>                                                     (4 + 16) / 200][Stage 15:====>                                                 (16 + 16) / 200][Stage 15:========>                                             (31 + 16) / 200][Stage 15:========>                                             (32 + 16) / 200][Stage 15:===========>                                          (43 + 16) / 200][Stage 15:============>                                         (48 + 16) / 200][Stage 15:===============>                                      (57 + 16) / 200][Stage 15:=================>                                    (64 + 16) / 200][Stage 15:====================>                                 (77 + 16) / 200][Stage 15:=====================>                                (81 + 16) / 200][Stage 15:=========================>                            (94 + 16) / 200][Stage 15:==========================>                          (100 + 16) / 200][Stage 15:=============================>                       (110 + 16) / 200][Stage 15:==============================>                      (116 + 16) / 200][Stage 15:=================================>                   (126 + 16) / 200][Stage 15:===================================>                 (134 + 16) / 200][Stage 15:=====================================>               (143 + 16) / 200][Stage 15:========================================>            (154 + 16) / 200][Stage 15:==========================================>          (162 + 16) / 200][Stage 15:==============================================>      (174 + 16) / 200][Stage 15:================================================>    (182 + 16) / 200][Stage 15:====================================================> (193 + 7) / 200]                                                                                25/07/25 02:42:25 WARN SparkStringUtils: Truncated the string representation of a plan since it was too large. This behavior can be adjusted by setting 'spark.sql.debug.maxToStringFields'.
+[Stage 27:>                                                      (0 + 16) / 200][Stage 27:===>                                                  (12 + 16) / 200][Stage 27:====>                                                 (16 + 16) / 200][Stage 27:=======>                                              (29 + 16) / 200][Stage 27:=========>                                            (36 + 16) / 200][Stage 27:=============>                                        (49 + 16) / 200][Stage 27:===============>                                      (57 + 17) / 200][Stage 27:===================>                                  (71 + 16) / 200][Stage 27:======================>                               (85 + 16) / 200][Stage 27:========================>                             (91 + 16) / 200][Stage 27:===========================>                         (104 + 16) / 200][Stage 27:===============================>                     (118 + 16) / 200][Stage 27:==================================>                  (131 + 16) / 200][Stage 27:======================================>              (146 + 16) / 200][Stage 27:==========================================>          (161 + 16) / 200][Stage 27:==============================================>      (177 + 16) / 200][Stage 27:===================================================>  (191 + 9) / 200]                                                                                [Stage 52:=======================>                              (86 + 17) / 200]                                                                                root
+ |-- id: long (nullable = true)
+ |-- title: string (nullable = true)
+ |-- pagerank: double (nullable = true)
+ |-- in_degree_centrality: double (nullable = true)
+ |-- out_degree_centrality: double (nullable = true)
+ |-- in_degree: long (nullable = true)
+ |-- out_degree: long (nullable = true)
+
++-----+----------------------------------------+---------------------+---------------------+---------------------+---------+----------+
+|id   |title                                   |pagerank             |in_degree_centrality |out_degree_centrality|in_degree|out_degree|
++-----+----------------------------------------+---------------------+---------------------+---------------------+---------+----------+
+|1677 |Alfonso_XIII                            |4.930697104429394E-8 |2.2678373343779497E-6|4.838052980006292E-6 |15       |32        |
+|1697 |Ambergris                               |3.081744935423318E-7 |2.2678373343779497E-6|1.209513245001573E-6 |15       |8         |
+|1806 |Arnold_Schwarzenegger                   |3.5447707164440657E-7|2.2678373343779497E-6|3.326161423754326E-6 |15       |22        |
+|1950 |American_Civil_Liberties_Union          |8.304140405499954E-8 |2.2678373343779497E-6|9.827295115637781E-6 |15       |65        |
+|2250 |Abiotic_stress                          |7.739013799420732E-8 |2.2678373343779497E-6|2.116648178752753E-6 |15       |14        |
+|2529 |Alexandra                               |9.13861918701449E-8  |2.2678373343779497E-6|3.6285397350047196E-6|15       |24        |
+|2927 |Albanians                               |3.896187261863409E-8 |2.2678373343779497E-6|2.4039075744406266E-5|15       |159       |
+|3764 |Bavaria                                 |8.590267363694553E-8 |2.2678373343779497E-6|9.524916804387388E-6 |15       |63        |
+|4823 |Balkan_Wars                             |4.181011218445913E-8 |2.2678373343779497E-6|9.524916804387388E-6 |15       |63        |
+|5385 |Candela                                 |9.319758923414901E-8 |2.2678373343779497E-6|1.5118915562519664E-6|15       |10        |
+|5409 |Commelinales                            |9.308695428541213E-8 |2.2678373343779497E-6|1.663080711877163E-6 |15       |11        |
+|5556 |Economy_of_Costa_Rica                   |5.561423748309384E-8 |2.2678373343779497E-6|7.408268625634635E-6 |15       |49        |
+|6721 |Cross-country_skiing                    |4.6910724062349507E-8|2.2678373343779497E-6|9.524916804387388E-6 |15       |63        |
+|7225 |Chemical_affinity                       |6.048165273446828E-8 |2.2678373343779497E-6|1.209513245001573E-6 |15       |8         |
+|7279 |Chapter_11,_Title_11,_United_States_Code|1.930978596379073E-7 |2.2678373343779497E-6|2.570215645628343E-6 |15       |17        |
+|8075 |Datsun                                  |1.1540591545798143E-7|2.2678373343779497E-6|7.408268625634635E-6 |15       |49        |
+|8484 |Deus_Ex_(video_game)                    |1.6938977436493415E-7|2.2678373343779497E-6|6.652322847508652E-6 |15       |44        |
+|9945 |EasyWriter                              |9.639849229261219E-8 |2.2678373343779497E-6|4.082107201880309E-6 |15       |27        |
+|9978 |Essenes                                 |9.0111465924288E-8   |2.2678373343779497E-6|1.0583240893763765E-6|15       |7         |
+|10422|Emperor_Kōtoku                          |6.106696832041576E-8 |2.2678373343779497E-6|7.257079470009439E-6 |15       |48        |
++-----+----------------------------------------+---------------------+---------------------+---------------------+---------+----------+
+only showing top 20 rows
++-------+--------------------+-------+---------------------+---------------------+---------------------+---------+------------------+
+|summary|id                  |title  |pagerank             |in_degree_centrality |out_degree_centrality|in_degree|out_degree        |
++-------+--------------------+-------+---------------------+---------------------+---------------------+---------+------------------+
+|count  |6596109             |6596109|6596109              |6596109              |6596109              |6596109  |6596109           |
+|mean   |3.310663828711351E7 |NaN    |1.5113461237577715E-7|2.2678373343779866E-6|2.2697108707909055E-6|15.0     |15.012392002618514|
+|stddev |2.3059025280931737E7|NaN    |8.931599163900568E-8 |0.0                  |2.136921606011009E-6 |0.0      |14.134093131047791|
+|min    |12                  |!!     |2.9380440388006156E-8|2.2678373343779497E-6|0.0                  |15       |0                 |
+|max    |77104121            |𝼝     |2.0785703004537676E-6|2.2678373343779497E-6|1.1006570529514315E-4|15       |728               |
++-------+--------------------+-------+---------------------+---------------------+---------------------+---------+------------------+
+
++--------+--------------------------+---------------------+
+|id      |title                     |pagerank             |
++--------+--------------------------+---------------------+
+|47067335|Ronald_Giphart            |2.0785703004537676E-6|
+|13936043|Purten                    |1.9540594479128767E-6|
+|3824843 |Michael_Swerdlow          |1.8131707779419303E-6|
+|9627617 |Aasutosh_Panigrahi        |1.7819268392721495E-6|
+|11323042|Quatloo                   |1.753609855682414E-6 |
+|30103934|Puntukas                  |1.7479510809626233E-6|
+|21514106|Preseucoela_imallshookupis|1.7418949921916658E-6|
+|14460217|Loir_Botor_Dingit         |1.710795902220388E-6 |
+|53796525|Aleiodes_shakirae         |1.6639902012666064E-6|
+|50987165|The_București_Experiment  |1.6611978333783444E-6|
+|39426081|Maurice_Gehri             |1.6079882013767124E-6|
+|10268813|Harold_Ryan               |1.5953726469639388E-6|
+|17862131|Vertical_Blue             |1.5940647965191966E-6|
+|47393215|Napal_Licin               |1.593385476225976E-6 |
+|47274413|Terry_Troxell             |1.59144781721865E-6  |
+|25480860|Jerry_Truglia             |1.5829040656850203E-6|
+|11421602|Viss,_Hungary             |1.5710596187530607E-6|
+|53340700|Beurt_SerVaas             |1.5530455938297208E-6|
+|41115039|Nicholas_Mevoli           |1.5405263764594168E-6|
+|4274341 |PACD                      |1.5266895774881302E-6|
++--------+--------------------------+---------------------+
+only showing top 20 rows
++--------+--------------------------------------------------------------------------+---------------------+
+|id      |title                                                                     |pagerank             |
++--------+--------------------------------------------------------------------------+---------------------+
+|38151287|List_of_Asilidae_species:_W                                               |2.9380440388006156E-8|
+|38151149|List_of_Asilidae_species:_I                                               |2.9380440388006156E-8|
+|38151102|List_of_Asilidae_species:_F                                               |2.9380440388006156E-8|
+|10370788|Asuka_Tanii                                                               |2.943634996841882E-8 |
+|49646776|Music_technology_(mechanical)                                             |2.9748367761096588E-8|
+|1394369 |Kumi_Sakuma                                                               |2.976134762931453E-8 |
+|60600292|List_of_Kentucky_supplemental_roads_and_rural_secondary_highways_(700–799)|2.9864795990529177E-8|
+|13366713|List_of_airliner_shootdown_incidents                                      |2.9870918523794795E-8|
+|19200227|List_of_accidents_and_incidents_involving_military_aircraft_(1975–1979)   |2.988835990182623E-8 |
+|66131721|List_of_accidents_and_incidents_involving_military_aircraft_(1970–1974)   |2.9904627194103806E-8|
+|38151117|List_of_Asilidae_species:_G                                               |2.990760332316731E-8 |
+|38151725|List_of_accidents_and_incidents_involving_military_aircraft_(1990–1999)   |2.994231049977142E-8 |
+|1003948 |Ayako_Kawasumi                                                            |2.9943057296611636E-8|
+|38151761|List_of_accidents_and_incidents_involving_military_aircraft_(1980–1989)   |2.995394071387307E-8 |
+|18989739|List_of_accidents_and_incidents_involving_military_aircraft_(2000–2009)   |2.995726724477894E-8 |
+|1010321 |Yūko_Kaida                                                                |2.9969321285047215E-8|
+|4742547 |Konami_Yoshida                                                            |2.999793412535127E-8 |
+|28372773|List_of_accidents_and_incidents_involving_military_aircraft_(1935–1939)   |3.008425128466151E-8 |
+|2646111 |Criticism_of_Christianity                                                 |3.0093253667115435E-8|
+|1059951 |Asako_Dodo                                                                |3.010134704173957E-8 |
++--------+--------------------------------------------------------------------------+---------------------+
+only showing top 20 rows
+Approximate quantiles for pagerank
+Quantile 0.00: 2.9380440388006156e-08
+Quantile 0.05: 2.9380440388006156e-08
+Quantile 0.10: 7.1006902351184e-08
+Quantile 0.15: 7.15650617139724e-08
+Quantile 0.20: 8.353649749394852e-08
+Quantile 0.25: 9.333226618076876e-08
+Quantile 0.30: 9.404281902230487e-08
+Quantile 0.35: 1.0282600584890207e-07
+Quantile 0.40: 1.1105757824836444e-07
+Quantile 0.45: 1.1882454961442154e-07
+Quantile 0.50: 1.2643046926932896e-07
+Quantile 0.55: 1.339835214160079e-07
+Quantile 0.60: 1.4169093663521357e-07
+Quantile 0.65: 1.4951499855355156e-07
+Quantile 0.70: 1.5777627088737617e-07
+Quantile 0.75: 1.7198579693742467e-07
+Quantile 0.80: 1.8712793949751242e-07
+Quantile 0.85: 2.0337532790299536e-07
+Quantile 0.90: 2.2707795145711382e-07
+Quantile 0.95: 2.0785703004537676e-06
+Quantile 1.00: 2.0785703004537676e-06
++----+-----------------------------+---------------------+
+|id  |title                        |in_degree_centrality |
++----+-----------------------------+---------------------+
+|1217|Anguilla                     |2.2678373343779497E-6|
+|1587|Alexander_of_Pherae          |2.2678373343779497E-6|
+|569 |Anthropology                 |2.2678373343779497E-6|
+|1718|Ambrosiaster                 |2.2678373343779497E-6|
+|1158|Algebraic_number             |2.2678373343779497E-6|
+|2015|Antarctic_Circumpolar_Current|2.2678373343779497E-6|
+|633 |Algae                        |2.2678373343779497E-6|
+|2475|Abadeh                       |2.2678373343779497E-6|
+|340 |Alain_Connes                 |2.2678373343779497E-6|
+|2782|Atari_Jaguar                 |2.2678373343779497E-6|
+|717 |Alberta                      |2.2678373343779497E-6|
+|2800|Asimov_(disambiguation)      |2.2678373343779497E-6|
+|1494|Alfred_Russel_Wallace        |2.2678373343779497E-6|
+|2833|Abitibi                      |2.2678373343779497E-6|
+|888 |A._E._van_Vogt               |2.2678373343779497E-6|
+|3045|Amyl_alcohol                 |2.2678373343779497E-6|
+|572 |Agricultural_science         |2.2678373343779497E-6|
+|3376|The_Beverly_Hillbillies      |2.2678373343779497E-6|
+|969 |Ataxia                       |2.2678373343779497E-6|
+|4540|Balts                        |2.2678373343779497E-6|
++----+-----------------------------+---------------------+
+only showing top 20 rows
++----+-----------------------+---------------------+
+|id  |title                  |in_degree_centrality |
++----+-----------------------+---------------------+
+|677 |Ambiguity              |2.2678373343779497E-6|
+|340 |Alain_Connes           |2.2678373343779497E-6|
+|788 |Apiales                |2.2678373343779497E-6|
+|1092|Demographics_of_Armenia|2.2678373343779497E-6|
+|751 |Aikido                 |2.2678373343779497E-6|
+|1214|Anglicanism            |2.2678373343779497E-6|
+|1692|Alfonso_III            |2.2678373343779497E-6|
+|1325|Casa_Milà              |2.2678373343779497E-6|
+|1587|Alexander_of_Pherae    |2.2678373343779497E-6|
+|2218|Additive_synthesis     |2.2678373343779497E-6|
+|1990|August_5               |2.2678373343779497E-6|
+|2692|Abdul_Hamid_I          |2.2678373343779497E-6|
+|786 |Asparagales            |2.2678373343779497E-6|
+|2753|AutoCAD                |2.2678373343779497E-6|
+|2332|AD_(disambiguation)    |2.2678373343779497E-6|
+|4091|Bartolomeo_Ammannati   |2.2678373343779497E-6|
+|1288|Apocrypha              |2.2678373343779497E-6|
+|4822|Board_of_directors     |2.2678373343779497E-6|
+|2783|Atari_Lynx             |2.2678373343779497E-6|
+|4869|Bill                   |2.2678373343779497E-6|
++----+-----------------------+---------------------+
+only showing top 20 rows
+Approximate quantiles for in_degree_centrality
+Quantile 0.00: 2.2678373343779497e-06
+Quantile 0.05: 2.2678373343779497e-06
+Quantile 0.10: 2.2678373343779497e-06
+Quantile 0.15: 2.2678373343779497e-06
+Quantile 0.20: 2.2678373343779497e-06
+Quantile 0.25: 2.2678373343779497e-06
+Quantile 0.30: 2.2678373343779497e-06
+Quantile 0.35: 2.2678373343779497e-06
+Quantile 0.40: 2.2678373343779497e-06
+Quantile 0.45: 2.2678373343779497e-06
+Quantile 0.50: 2.2678373343779497e-06
+Quantile 0.55: 2.2678373343779497e-06
+Quantile 0.60: 2.2678373343779497e-06
+Quantile 0.65: 2.2678373343779497e-06
+Quantile 0.70: 2.2678373343779497e-06
+Quantile 0.75: 2.2678373343779497e-06
+Quantile 0.80: 2.2678373343779497e-06
+Quantile 0.85: 2.2678373343779497e-06
+Quantile 0.90: 2.2678373343779497e-06
+Quantile 0.95: 2.2678373343779497e-06
+Quantile 1.00: 2.2678373343779497e-06
++--------+---------------------------------------------------+---------------------+
+|id      |title                                              |out_degree_centrality|
++--------+---------------------------------------------------+---------------------+
+|10781   |Film_festival                                      |1.1006570529514315E-4|
+|3181387 |Love_(Love_album)                                  |1.0900738120576678E-4|
+|2518541 |Cinema_of_Russia                                   |8.632900786198729E-5 |
+|151803  |Play_(play)                                        |8.57242512394865E-5  |
+|9223    |Economics                                          |7.695528021322508E-5 |
+|76302274|Blues_Blues_Blues                                  |7.453625372322195E-5 |
+|17364017|Singles_90/98                                      |7.2268416388844E-5   |
+|1589136 |Italian_literature                                 |7.166365976634321E-5 |
+|5360    |Card_game                                          |7.075652483259203E-5 |
+|27968837|Christian_theology                                 |7.000057905446605E-5 |
+|10520900|Metal_Massacre                                     |6.712798509758731E-5 |
+|10787   |Cinema_of_Italy                                    |6.667441763071172E-5 |
+|23015   |Programming_language                               |6.667441763071172E-5 |
+|22921   |Psychology                                         |6.591847185258573E-5 |
+|1471751 |Rock_music_in_Serbia                               |6.576728269696054E-5 |
+|5704    |Comic_strip                                        |6.561609354133534E-5 |
+|30965   |The_Band                                           |6.501133691883455E-5 |
+|14881964|Taxonomy_of_the_Gastropoda_(Bouchet_&_Rocroi,_2005)|6.410420198508337E-5 |
+|13094841|A_Broadway_Musical                                 |6.380182367383298E-5 |
+|1413783 |Italian_opera                                      |6.25923104288314E-5  |
++--------+---------------------------------------------------+---------------------+
+only showing top 20 rows
++-------+-------------------------------+---------------------+
+|id     |title                          |out_degree_centrality|
++-------+-------------------------------+---------------------+
+|1210365|Fictitious_persons_disclaimer  |0.0                  |
+|1191117|Peierls_bracket                |0.0                  |
+|1355813|Gluey_Porch_Treatments         |0.0                  |
+|2633020|Comunitarian_Party_Option_Seven|0.0                  |
+|784697 |Teuva                          |0.0                  |
+|1243511|Léonce_Verny                   |0.0                  |
+|2679689|October_Cherries               |0.0                  |
+|84342  |28th_century_BC                |0.0                  |
+|817161 |Thomas-Everard_family          |0.0                  |
+|1280267|F._W._Williams                 |0.0                  |
+|1522868|Wesen                          |0.0                  |
+|592480 |Right_to_Censor                |0.0                  |
+|2562986|Hermodice_carunculata          |0.0                  |
+|1287870|Dines'_compensation            |0.0                  |
+|221628 |Perisoreus                     |0.0                  |
+|112783 |Readlyn,_Iowa                  |0.0                  |
+|804243 |Roger_Kingdom                  |0.0                  |
+|1325513|Wagnerian_rock                 |0.0                  |
+|1607146|TCAD                           |0.0                  |
+|768378 |4040                           |0.0                  |
++-------+-------------------------------+---------------------+
+only showing top 20 rows
+Approximate quantiles for out_degree_centrality
+Quantile 0.00: 0.0
+Quantile 0.05: 0.0
+Quantile 0.10: 4.5356746687558995e-07
+Quantile 0.15: 4.5356746687558995e-07
+Quantile 0.20: 7.559457781259832e-07
+Quantile 0.25: 9.071349337511799e-07
+Quantile 0.30: 9.071349337511799e-07
+Quantile 0.35: 1.0583240893763765e-06
+Quantile 0.40: 1.3607024006267698e-06
+Quantile 0.45: 1.5118915562519664e-06
+Quantile 0.50: 1.663080711877163e-06
+Quantile 0.55: 1.965459023127556e-06
+Quantile 0.60: 2.116648178752753e-06
+Quantile 0.65: 2.2678373343779497e-06
+Quantile 0.70: 2.419026490003146e-06
+Quantile 0.75: 2.7214048012535397e-06
+Quantile 0.80: 3.023783112503933e-06
+Quantile 0.85: 3.4773505793795228e-06
+Quantile 0.90: 3.930918046255112e-06
+Quantile 0.95: 0.00011006570529514315
+Quantile 1.00: 0.00011006570529514315
++----+---------------------------+---------+
+|id  |title                      |in_degree|
++----+---------------------------+---------+
+|330 |Actrius                    |15       |
+|1158|Algebraic_number           |15       |
+|1288|Apocrypha                  |15       |
+|1494|Alfred_Russel_Wallace      |15       |
+|1587|Alexander_of_Pherae        |15       |
+|1656|Amalric_of_Bena            |15       |
+|1439|Abydos                     |15       |
+|1854|Geography_of_Africa        |15       |
+|340 |Alain_Connes               |15       |
+|2641|Ajaigarh                   |15       |
+|1523|Agate                      |15       |
+|4388|Book_of_Proverbs           |15       |
+|1718|Ambrosiaster               |15       |
+|4795|Banda                      |15       |
+|1603|Alexander_II               |15       |
+|5869|Category_theory            |15       |
+|572 |Agricultural_science       |15       |
+|6417|Corvus_(disambiguation)    |15       |
+|2123|Abyssinia_(disambiguation) |15       |
+|7431|Counter-Strike_(video_game)|15       |
++----+---------------------------+---------+
+only showing top 20 rows
++----+-----------------------------+---------+
+|id  |title                        |in_degree|
++----+-----------------------------+---------+
+|656 |Acid                         |15       |
+|1158|Algebraic_number             |15       |
+|1587|Alexander_of_Pherae          |15       |
+|1494|Alfred_Russel_Wallace        |15       |
+|340 |Alain_Connes                 |15       |
+|1656|Amalric_of_Bena              |15       |
+|1718|Ambrosiaster                 |15       |
+|1854|Geography_of_Africa          |15       |
+|808 |Alfred_Hitchcock             |15       |
+|2641|Ajaigarh                     |15       |
+|2015|Antarctic_Circumpolar_Current|15       |
+|4388|Book_of_Proverbs             |15       |
+|1092|Demographics_of_Armenia      |15       |
+|4795|Banda                        |15       |
+|2475|Abadeh                       |15       |
+|5869|Category_theory              |15       |
+|336 |Altruism                     |15       |
+|6417|Corvus_(disambiguation)      |15       |
+|2782|Atari_Jaguar                 |15       |
+|7431|Counter-Strike_(video_game)  |15       |
++----+-----------------------------+---------+
+only showing top 20 rows
+Approximate quantiles for in_degree
+Quantile 0.00: 15.0
+Quantile 0.05: 15.0
+Quantile 0.10: 15.0
+Quantile 0.15: 15.0
+Quantile 0.20: 15.0
+Quantile 0.25: 15.0
+Quantile 0.30: 15.0
+Quantile 0.35: 15.0
+Quantile 0.40: 15.0
+Quantile 0.45: 15.0
+Quantile 0.50: 15.0
+Quantile 0.55: 15.0
+Quantile 0.60: 15.0
+Quantile 0.65: 15.0
+Quantile 0.70: 15.0
+Quantile 0.75: 15.0
+Quantile 0.80: 15.0
+Quantile 0.85: 15.0
+Quantile 0.90: 15.0
+Quantile 0.95: 15.0
+Quantile 1.00: 15.0
++--------+---------------------------------------------------+----------+
+|id      |title                                              |out_degree|
++--------+---------------------------------------------------+----------+
+|10781   |Film_festival                                      |728       |
+|3181387 |Love_(Love_album)                                  |721       |
+|2518541 |Cinema_of_Russia                                   |571       |
+|151803  |Play_(play)                                        |567       |
+|9223    |Economics                                          |509       |
+|76302274|Blues_Blues_Blues                                  |493       |
+|17364017|Singles_90/98                                      |478       |
+|1589136 |Italian_literature                                 |474       |
+|5360    |Card_game                                          |468       |
+|27968837|Christian_theology                                 |463       |
+|10520900|Metal_Massacre                                     |444       |
+|10787   |Cinema_of_Italy                                    |441       |
+|23015   |Programming_language                               |441       |
+|22921   |Psychology                                         |436       |
+|1471751 |Rock_music_in_Serbia                               |435       |
+|5704    |Comic_strip                                        |434       |
+|30965   |The_Band                                           |430       |
+|14881964|Taxonomy_of_the_Gastropoda_(Bouchet_&_Rocroi,_2005)|424       |
+|13094841|A_Broadway_Musical                                 |422       |
+|1413783 |Italian_opera                                      |414       |
++--------+---------------------------------------------------+----------+
+only showing top 20 rows
++-------+----------------------------------------------------------+----------+
+|id     |title                                                     |out_degree|
++-------+----------------------------------------------------------+----------+
+|917930 |Bent_Gestur_Sivertz                                       |0         |
+|1138323|Kubanskaya                                                |0         |
+|1191117|Peierls_bracket                                           |0         |
+|2791406|Aptakisic-Tripp_Community_Consolidated_School_District_102|0         |
+|674961 |Casacuarán                                                |0         |
+|1254904|Hopcalite                                                 |0         |
+|2633020|Comunitarian_Party_Option_Seven                           |0         |
+|201290 |Macnas                                                    |0         |
+|817161 |Thomas-Everard_family                                     |0         |
+|1320860|Dink_Smallwood                                            |0         |
+|1243511|Léonce_Verny                                              |0         |
+|401709 |List_of_people_from_Gujarat                               |0         |
+|2106048|Kawakawa                                                  |0         |
+|1365409|Come_Fill_the_Cup                                         |0         |
+|84342  |28th_century_BC                                           |0         |
+|582727 |Chukwa                                                    |0         |
+|804243 |Roger_Kingdom                                             |0         |
+|1409540|Chamelecón                                                |0         |
+|1280267|F._W._Williams                                            |0         |
+|646717 |BZFlag                                                    |0         |
++-------+----------------------------------------------------------+----------+
+only showing top 20 rows
+Approximate quantiles for out_degree
+Quantile 0.00: 0.0
+Quantile 0.05: 0.0
+Quantile 0.10: 3.0
+Quantile 0.15: 3.0
+Quantile 0.20: 5.0
+Quantile 0.25: 6.0
+Quantile 0.30: 6.0
+Quantile 0.35: 7.0
+Quantile 0.40: 9.0
+Quantile 0.45: 10.0
+Quantile 0.50: 11.0
+Quantile 0.55: 13.0
+Quantile 0.60: 14.0
+Quantile 0.65: 15.0
+Quantile 0.70: 16.0
+Quantile 0.75: 18.0
+Quantile 0.80: 20.0
+Quantile 0.85: 23.0
+Quantile 0.90: 26.0
+Quantile 0.95: 728.0
+Quantile 1.00: 728.0
+---------------------------------------
+Begin Slurm Epilog: Jul-25-2025 02:42:37
+Job ID:        6051105
+User ID:       amiyaguchi3
+Account:       paceship-dsgt_trec2025
+Job name:      stats
+Resources:     cpu=16,mem=64G,node=1
+Rsrc Used:     cput=00:09:20,vmem=0,walltime=00:00:35,mem=16475796K,energy_used=0
+Partition:     cpu-small
+QOS:           embers
+Nodes:         atl1-1-02-003-16-2
+---------------------------------------

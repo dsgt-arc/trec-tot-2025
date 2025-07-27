@@ -229,6 +229,61 @@ class FaissKNNQueryTask(luigi.Task):
             results_df.to_parquet(output_path, index=False)
 
 
+class ProcessGraphTask(luigi.Task):
+    input_root = luigi.Parameter()
+    output_root = luigi.Parameter()
+    num_neighbors = luigi.IntParameter(default=50)
+    source_is_target = luigi.BoolParameter(default=True)
+
+    def output(self):
+        return {
+            "edges": luigi.LocalTarget(
+                (Path(self.output_root) / "edges/_SUCCESS").as_posix()
+            ),
+            "nodes": luigi.LocalTarget(
+                (Path(self.output_root) / "nodes/_SUCCESS").as_posix()
+            ),
+        }
+
+    def run(self):
+        # assuming 192gb of ram
+        spark = get_spark(memory="180g")
+        df = spark.read.parquet(self.input_root)
+        links = (
+            df.select("page_id", F.arrays_zip("neighbors", "scores").alias("neighbors"))
+            .select("page_id", F.posexplode("neighbors").alias("pos", "neighbor"))
+            .select(
+                F.col("page_id").alias("src"),
+                F.col("neighbor.neighbors").alias("dst"),
+                F.col("neighbor.scores").alias("score"),
+                F.col("pos").alias("rank"),
+            )
+            .where(F.col("rank") <= self.num_neighbors)
+            .where("src != dst")
+        )
+        if self.source_is_target:
+            links = links.select(
+                F.col("dst").alias("src"),
+                F.col("src").alias("dst"),
+                *[c for c in links.columns if c not in ["src", "dst"]],
+            )
+        links.printSchema()
+        links.write.parquet(
+            (Path(self.output_root) / "edges").as_posix(), mode="overwrite"
+        )
+        links = spark.read.parquet((Path(self.output_root) / "edges").as_posix())
+
+        nodes = (
+            df.select(F.col("page_id").alias("id"))
+            .union(links.select(F.col("src").alias("id")))
+            .union(links.select(F.col("dst").alias("id")))
+        ).distinct()
+        nodes.printSchema()
+        nodes.write.parquet(
+            (Path(self.output_root) / "nodes").as_posix(), mode="overwrite"
+        )
+
+
 class Workflow(luigi.Task):
     def run(self):
         root = Path("~/scratch/trec-tot-2025/data").expanduser()
@@ -245,11 +300,26 @@ class Workflow(luigi.Task):
                 input_root=str(emb_avg_root),
                 output_root=str(root / "enwiki/faiss/bge-m3-avg/v1"),
                 dim_pca=384,
+                # sadly, this is off by one because of self-loops
                 k=50,
                 current_shard=i,
                 total_shards=parts,
             )
             for i in range(parts)
+        ]
+        yield [
+            ProcessGraphTask(
+                input_root=str(root / "enwiki/faiss/bge-m3-avg/v1/knn"),
+                output_root=str(root / "enwiki/processed/graph/v2/bge-m3-knn-k10"),
+                num_neighbors=10,
+                source_is_target=True,
+            ),
+            ProcessGraphTask(
+                input_root=str(root / "enwiki/faiss/bge-m3-avg/v1/knn"),
+                output_root=str(root / "enwiki/processed/graph/v2/bge-m3-knn-k15"),
+                num_neighbors=15,
+                source_is_target=True,
+            ),
         ]
 
 

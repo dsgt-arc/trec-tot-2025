@@ -187,7 +187,7 @@ def batch_rerank_with_openrouter(rerank_requests: List[Dict[str, Any]],
 
     ranker = SafeOpenaiBackend(
         model=model,
-        context_size=8192,
+        context_size=128_000,
         keys=api_keys, # API keys for the service
         api_base=api_base,
         prompt_template_path=prompt_template_path
