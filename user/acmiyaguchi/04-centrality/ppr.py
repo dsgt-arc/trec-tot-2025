@@ -122,7 +122,7 @@ class RerankPersonalizedPageRank(luigi.Task, SharedParams):
             )
             .select(subset.columns)
         ).sort("score", descending=True)
-        output_path.mkdir(parents=True, exist_ok=True)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
         subset_reranked.write_parquet(output_path, compression="zstd")
 
     def run(self):
@@ -170,4 +170,8 @@ def run():
 
 
 if __name__ == "__main__":
+    # new process per task
+    import multiprocessing as mp
+
+    mp.set_start_method("spawn")
     app()
