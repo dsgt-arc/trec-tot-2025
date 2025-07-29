@@ -31,8 +31,12 @@ def get_mapping_df(edges: pl.DataFrame) -> pl.DataFrame:
 
 def load_graph_data(nodes: pl.DataFrame, edges: pl.DataFrame) -> rx.PyDiGraph:
     graph = rx.PyDiGraph()
-    _ = graph.add_nodes_from(tqdm.tqdm(nodes.sort(by="idx").select("idx").to_series()))
-    _ = graph.add_edges_from(tqdm.tqdm(edges.iter_rows(), total=len(edges)))
+    _ = graph.add_nodes_from(
+        tqdm.tqdm(nodes.sort(by="idx").select("idx").to_series(), mininterval=10)
+    )
+    _ = graph.add_edges_from(
+        tqdm.tqdm(edges.iter_rows(), total=len(edges), mininterval=10)
+    )
     return graph
 
 
@@ -109,7 +113,9 @@ class RerankPersonalizedPageRank(luigi.Task, SharedParams):
         personalization = {
             idx: 1.0 / dim for idx in mapped_subset.select("idx").to_series()
         }
-        ppr = rx.pagerank(graph, personalization=personalization, tol=1.0e-8)
+        ppr = rx.pagerank(
+            graph, personalization=personalization, tol=1.0e-8, weight_fn=lambda e: e
+        )
         score_df = pl.DataFrame({"idx": ppr.keys(), "score": ppr.values()}).join(
             mapped_subset, on="idx", how="inner"
         )
@@ -146,7 +152,7 @@ class Workflow(luigi.Task):
 
         for suffix in ["bge-m3-knn-k15"]:
             graph_root = dataset_root / "graph/v2" / suffix
-            output_root = dataset_root / "reranked/v2" / suffix
+            output_root = dataset_root / "reranked/v2.1" / suffix
             output_root.mkdir(parents=True, exist_ok=True)
 
             tasks.extend(
