@@ -7,7 +7,7 @@
 set -xe
 export SPARK_LOCAL_DIRS="$TMPDIR"
 
-SUFFIX=${1:-"bge-m3-knn-k10"}
+SUFFIX=${1:-"v2.2/bge-m3-knn-k15"}
 
 uv run - <<EOF
 # /// script
@@ -33,13 +33,13 @@ suffix = "${SUFFIX}"
 page = spark.read.parquet((parquet_root / "page").as_posix())
 nodes = spark.read.parquet((dataset_root / "graph/v2/bge-m3-knn/nodes").as_posix())
 pagerank = spark.read.parquet(
-    (dataset_root / f"centrality/v2/{suffix}/pagerank.parquet").as_posix()
+    (dataset_root / f"centrality/{suffix}/pagerank.parquet").as_posix()
 )
 degree_centrality = spark.read.parquet(
-    (dataset_root / f"centrality/v2/{suffix}/degree_centrality.parquet").as_posix()
+    (dataset_root / f"centrality/{suffix}/degree_centrality.parquet").as_posix()
 )
 degree = spark.read.parquet(
-    (dataset_root / f"centrality/v2/{suffix}/degree.parquet").as_posix()
+    (dataset_root / f"centrality/{suffix}/degree.parquet").as_posix()
 )
 df = (
     nodes.join(

@@ -1,0 +1,9 @@
+#!/bin/bash
+#SBATCH -Jsbatch --account=paceship-dsgt_trec2025
+#SBATCH --nodes=1 --ntasks=1 --cpus-per-task=24 --mem=300G
+#SBATCH -t4:00:00 -qembers -ologs/ppr-%j.out
+#SBATCH --mail-type=END,FAIL --mail-user=acmiyaguchi@gatech.edu
+
+set -x
+cd ${SLURM_SUBMIT_DIR:-$(dirname "$0")}
+uv run ppr.py

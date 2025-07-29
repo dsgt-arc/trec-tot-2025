@@ -71,7 +71,7 @@ class ComputePageRank(luigi.Task, SharedParams):
         edges = pl.read_parquet(f"{self.edges_path}/*.parquet")
         graph, mapping_df = load_graph_data_remapped(edges)
         with contexttimer.Timer() as t:
-            score = rx.pagerank(graph, max_iter=200, tol=1.0e-8)
+            score = rx.pagerank(graph, max_iter=200, tol=1.0e-10, weight_fn=lambda e: e)
         print(f"PageRank computed in {t.elapsed:.2f} seconds", flush=True)
         pr_df = (
             pl.DataFrame({"idx": score.keys(), "pagerank": score.values()})
@@ -176,7 +176,7 @@ class Workflow(luigi.Task):
 
         for suffix in ["bge-m3-knn-k10", "bge-m3-knn-k15"]:
             graph_root = dataset_root / "graph/v2" / suffix
-            output_root = dataset_root / "centrality/v2" / suffix
+            output_root = dataset_root / "centrality/v2.2" / suffix
             output_root.mkdir(parents=True, exist_ok=True)
 
             tasks.extend(
@@ -186,12 +186,6 @@ class Workflow(luigi.Task):
                         edges_path=(graph_root / "edges").as_posix(),
                         output_path=(output_root / "pagerank.parquet").as_posix(),
                     ),
-                    # HITS apparently doesn't want to converge on the larger knn graph
-                    # ComputeHITS(
-                    #     nodes_path=(graph_root / "nodes").as_posix(),
-                    #     edges_path=(graph_root / "edges").as_posix(),
-                    #     output_path=(output_root / "hits.parquet").as_posix(),
-                    # ),
                     ComputeDegreeCentrality(
                         nodes_path=(graph_root / "nodes").as_posix(),
                         edges_path=(graph_root / "edges").as_posix(),
