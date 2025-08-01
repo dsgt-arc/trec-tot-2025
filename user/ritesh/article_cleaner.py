@@ -7,6 +7,7 @@ from multiprocessing import Pool, cpu_count
 import logging
 import time
 import re
+import json
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -210,6 +211,46 @@ class CompiledPatterns:
 
 # Initialize global patterns object
 patterns = CompiledPatterns()
+
+# Checkpoint management functions
+def load_checkpoint(checkpoint_file: str) -> Dict:
+    """Load checkpoint data from file"""
+    if os.path.exists(checkpoint_file):
+        try:
+            with open(checkpoint_file, 'r') as f:
+                return json.load(f)
+        except Exception as e:
+            logger.warning(f"Failed to load checkpoint: {e}")
+    return {}
+
+def save_checkpoint(checkpoint_file: str, checkpoint_data: Dict):
+    """Save checkpoint data to file"""
+    try:
+        os.makedirs(os.path.dirname(checkpoint_file), exist_ok=True)
+        with open(checkpoint_file, 'w') as f:
+            json.dump(checkpoint_data, f, indent=2)
+    except Exception as e:
+        logger.error(f"Failed to save checkpoint: {e}")
+
+def get_existing_progress(topic_name: str, output_dir: str) -> Tuple[int, List[str]]:
+    """Get existing progress by counting articles in existing chunks"""
+    chunk_pattern = os.path.join(output_dir, f"{topic_name}_cleaned_chunk_*.parquet")
+    chunk_files = glob.glob(chunk_pattern)
+    
+    total_articles = 0
+    processed_ids = set()
+    
+    for chunk_file in chunk_files:
+        try:
+            df = pd.read_parquet(chunk_file, columns=['id'])
+            chunk_articles = len(df)
+            total_articles += chunk_articles
+            processed_ids.update(df['id'].astype(str).tolist())
+            logger.info(f"Found existing chunk: {os.path.basename(chunk_file)} with {chunk_articles} articles")
+        except Exception as e:
+            logger.warning(f"Error reading {chunk_file}: {e}")
+    
+    return total_articles, list(processed_ids)
 
 def build_shard_index(parquet_shards_dir) -> Dict[str, str]:
     """Build a simplified doc_id → shard_path map"""
@@ -448,82 +489,46 @@ def check_content_quality(title: str, text: str) -> Dict[str, bool]:
     
     return checks
 
-def process_articles_batch(article_batch: List[Tuple[str, str, str, str, float]]) -> Tuple[List[Dict], Dict]:
-    """Process a batch of articles with comprehensive quality checks"""
-    cleaned_articles = []
-    stats = {
-        'total_processed': 0,
-        'low_quality_filtered': 0,
-        'list_pages_filtered': 0,
-        'quality_checks': {
-            'is_not_list_page': 0, 'has_min_unique_words': 0, 'has_min_length': 0,
-            'has_explanatory_content': 0, 'has_coherent_paragraphs': 0,
-            'has_contextual_information': 0, 'has_good_sentences': 0,
-            'has_sufficient_content_depth': 0
-        }
-    }
+def process_topic_with_checkpoints(task: Tuple[str, pd.DataFrame, str, str]) -> Tuple[str, int, int]:
+    """Process a topic with checkpoint functionality"""
+    topic_name, df, output_dir, checkpoint_file = task
     
-    for doc_id, title, url, text, confidence in article_batch:
-        stats['total_processed'] += 1
-        
-        quality_checks = check_content_quality(title, text)
-        
-        # Update statistics
-        for check_name, result in quality_checks.items():
-            if check_name != 'overall_quality' and result:
-                stats['quality_checks'][check_name] += 1
-        
-        if not quality_checks['is_not_list_page']:
-            stats['list_pages_filtered'] += 1
-        
-        if quality_checks['overall_quality']:
-            cleaned_articles.append({
-                'id': doc_id,
-                'title': title,
-                'url': url,
-                'text': text,
-                'confidence': confidence
-            })
-        else:
-            stats['low_quality_filtered'] += 1
+    logger.info(f"Starting {topic_name} processing...")
     
-    return cleaned_articles, stats
-
-def process_topic_optimized(task: Tuple[str, pd.DataFrame, str, int]) -> Tuple[str, int, int, Dict]:
-    """Optimized topic processing with comprehensive quality checks"""
-    topic_name, df, output_dir, start_idx = task
+    # Get existing progress
+    existing_count, processed_ids = get_existing_progress(topic_name, output_dir)
+    processed_ids_set = set(processed_ids)
     
-    logger.info(f"Processing topic: {topic_name} with {len(df)} articles, starting from idx={start_idx}")
+    logger.info(f"{topic_name}: Found {existing_count} existing articles")
+    
+    # Filter out already processed articles
+    df_remaining = df[~df['id'].astype(str).isin(processed_ids_set)].copy()
+    
+    if len(df_remaining) == 0:
+        logger.info(f"{topic_name}: Already complete!")
+        return topic_name, existing_count, len(df)
+    
+    logger.info(f"{topic_name}: Processing {len(df_remaining)} remaining articles")
     
     # Sort for consistent processing
-    df = df.sort_values(by='title').reset_index(drop=True)
+    df_remaining = df_remaining.sort_values(by='title').reset_index(drop=True)
     
-    all_cleaned_articles = []
-    cumulative_stats = {
-        'total_processed': 0, 'low_quality_filtered': 0, 'list_pages_filtered': 0,
-        'quality_checks': {
-            'is_not_list_page': 0, 'has_min_unique_words': 0, 'has_min_length': 0,
-            'has_explanatory_content': 0, 'has_coherent_paragraphs': 0,
-            'has_contextual_information': 0, 'has_good_sentences': 0,
-            'has_sufficient_content_depth': 0
-        }
-    }
+    # Processing variables
+    current_chunk = []
+    chunk_size = 100000
+    total_processed = 0
+    total_kept = existing_count
+    next_chunk_num = len(glob.glob(os.path.join(output_dir, f"{topic_name}_cleaned_chunk_*.parquet")))
     
-    batch_size = 1000
-    current_batch = []
-    
-    # Group by shard to minimize I/O
+    # Group by shard for efficient I/O
     shard_groups = {}
-    for idx, row in df.iterrows():
-        if idx < start_idx:
-            continue
-            
+    for idx, row in df_remaining.iterrows():
         doc_id = str(row['id'])
         if doc_id in doc_index:
             shard_path = doc_index[doc_id]
             if shard_path not in shard_groups:
                 shard_groups[shard_path] = []
-            shard_groups[shard_path].append((idx, doc_id, row['confidence']))
+            shard_groups[shard_path].append((doc_id, row['confidence']))
     
     # Process each shard
     for shard_path, doc_list in shard_groups.items():
@@ -532,83 +537,88 @@ def process_topic_optimized(task: Tuple[str, pd.DataFrame, str, int]) -> Tuple[s
             shard_df = pd.read_parquet(shard_path, columns=['id', 'title', 'url', 'text'])
             shard_dict = shard_df.set_index('id').to_dict('index')
             
-            for idx, doc_id, confidence in doc_list:
+            for doc_id, confidence in doc_list:
+                total_processed += 1
+                
                 if doc_id in shard_dict:
                     article_data = shard_dict[doc_id]
-                    current_batch.append((
-                        doc_id,
-                        article_data['title'],
-                        article_data['url'],
-                        article_data['text'],
-                        confidence
-                    ))
+                    title = article_data['title']
+                    text = article_data['text']
+                    
+                    # Quality check
+                    quality_result = check_content_quality(title, text)
+                    
+                    if quality_result['overall_quality']:
+                        current_chunk.append({
+                            'id': doc_id,
+                            'title': title,
+                            'url': article_data['url'],
+                            'text': text,
+                            'confidence': confidence
+                        })
+                    
+                    # Save chunk when full
+                    if len(current_chunk) >= chunk_size:
+                        chunk_file = os.path.join(output_dir, f"{topic_name}_cleaned_chunk_{next_chunk_num}.parquet")
+                        pd.DataFrame(current_chunk).to_parquet(chunk_file, index=False)
+                        
+                        total_kept += len(current_chunk)
+                        logger.info(f"{topic_name}: Saved chunk {next_chunk_num} with {len(current_chunk)} articles. "
+                                  f"Total: {total_kept}, Processed: {total_processed}")
+                        
+                        # Update checkpoint
+                        checkpoint_data = load_checkpoint(checkpoint_file)
+                        checkpoint_data[topic_name] = {
+                            'total_articles_kept': total_kept,
+                            'total_processed': total_processed,
+                            'last_chunk': next_chunk_num,
+                            'timestamp': time.time(),
+                            'status': 'in_progress'
+                        }
+                        save_checkpoint(checkpoint_file, checkpoint_data)
+                        
+                        current_chunk = []
+                        next_chunk_num += 1
                 
-                # Process batch when full
-                if len(current_batch) >= batch_size:
-                    batch_results, batch_stats = process_articles_batch(current_batch)
-                    all_cleaned_articles.extend(batch_results)
-                    
-                    # Update cumulative stats
-                    cumulative_stats['total_processed'] += batch_stats['total_processed']
-                    cumulative_stats['low_quality_filtered'] += batch_stats['low_quality_filtered']
-                    cumulative_stats['list_pages_filtered'] += batch_stats['list_pages_filtered']
-                    for check_name, count in batch_stats['quality_checks'].items():
-                        cumulative_stats['quality_checks'][check_name] += count
-                    
-                    current_batch = []
-                    logger.info(f"Processed {cumulative_stats['total_processed']} articles for {topic_name}, "
-                              f"kept {len(all_cleaned_articles)}")
-        
+                # Progress logging
+                if total_processed % 5000 == 0:
+                    logger.info(f"{topic_name}: Processed {total_processed}, passed {len(current_chunk)} articles, failed {total_processed - len(current_chunk)} articles, saved {total_kept} articles so far")
+
         except Exception as e:
-            logger.error(f"Error processing shard {shard_path}: {e}")
+            logger.error(f"Error processing shard {shard_path} for {topic_name}: {e}")
             continue
     
-    # Process remaining batch
-    if current_batch:
-        batch_results, batch_stats = process_articles_batch(current_batch)
-        all_cleaned_articles.extend(batch_results)
-        
-        cumulative_stats['total_processed'] += batch_stats['total_processed']
-        cumulative_stats['low_quality_filtered'] += batch_stats['low_quality_filtered']
-        cumulative_stats['list_pages_filtered'] += batch_stats['list_pages_filtered']
-        for check_name, count in batch_stats['quality_checks'].items():
-            cumulative_stats['quality_checks'][check_name] += count
+    # Save final chunk
+    if current_chunk:
+        chunk_file = os.path.join(output_dir, f"{topic_name}_cleaned_chunk_{next_chunk_num}.parquet")
+        pd.DataFrame(current_chunk).to_parquet(chunk_file, index=False)
+        total_kept += len(current_chunk)
+        logger.info(f"{topic_name}: Saved final chunk {next_chunk_num} with {len(current_chunk)} articles")
     
-    # Save results in chunks
-    if all_cleaned_articles:
-        chunk_size = 100000
-        total_chunks = (len(all_cleaned_articles) + chunk_size - 1) // chunk_size  # Ceiling division
-        
-        for i in range(0, len(all_cleaned_articles), chunk_size):
-            chunk = all_cleaned_articles[i:i+chunk_size]
-            chunk_num = i // chunk_size
-            chunk_file = os.path.join(output_dir, f"{topic_name}_cleaned_chunk_{chunk_num}.parquet")
-            pd.DataFrame(chunk).to_parquet(chunk_file, index=False)
-            
-            logger.info(f"Saved chunk {chunk_num + 1}/{total_chunks} for {topic_name}: {len(chunk)} articles")
+    # Mark as complete
+    checkpoint_data = load_checkpoint(checkpoint_file)
+    checkpoint_data[topic_name] = {
+        'total_articles_kept': total_kept,
+        'total_processed': total_processed,
+        'status': 'complete',
+        'completion_time': time.time()
+    }
+    save_checkpoint(checkpoint_file, checkpoint_data)
     
-    # Log detailed statistics
-    logger.info(f"Completed {topic_name}:")
-    logger.info(f"  Total processed: {cumulative_stats['total_processed']}")
-    logger.info(f"  List/disambiguation pages filtered: {cumulative_stats['list_pages_filtered']}")
-    logger.info(f"  Other low quality filtered: {cumulative_stats['low_quality_filtered'] - cumulative_stats['list_pages_filtered']}")
-    logger.info(f"  Kept: {len(all_cleaned_articles)}")
-    logger.info(f"  Individual check pass rates:")
-    for check_name, count in cumulative_stats['quality_checks'].items():
-        rate = (count / cumulative_stats['total_processed']) * 100 if cumulative_stats['total_processed'] > 0 else 0
-        logger.info(f"    {check_name}: {count}/{cumulative_stats['total_processed']} ({rate:.1f}%)")
-    
-    return topic_name, len(all_cleaned_articles), cumulative_stats['total_processed'], cumulative_stats
+    logger.info(f"{topic_name}: COMPLETE - {total_kept} total articles kept, {total_processed} processed this run")
+    return topic_name, total_kept, total_processed
 
 if __name__ == "__main__":
     parquet_shards_dir = "/storage/home/hcoda1/5/rmehta307/scratch/trec-tot-2025/split_parquet_shards/"
     topic_csv_dir = "/storage/home/hcoda1/5/rmehta307/scratch/trec-tot-2025/topic_grouped_csv"
     output_dir = "/storage/home/hcoda1/5/rmehta307/scratch/trec-tot-2025/cleaned_articles_parquet"
+    checkpoint_file = os.path.join(output_dir, "progress_checkpoint.json")
 
     os.makedirs(output_dir, exist_ok=True)
 
-    global doc_index
+    # Build index and load data
     logger.info("Building article index...")
+    global doc_index
     doc_index = build_shard_index(parquet_shards_dir)
     logger.info(f"Built index for {len(doc_index)} articles")
 
@@ -616,36 +626,94 @@ if __name__ == "__main__":
     topic_data = load_topic_csv_files(topic_csv_dir)
     logger.info(f"Loaded {len(topic_data)} topics")
 
-    # Prepare tasks - all topics with start_idx=0
-    tasks = []
-    for topic_name, df in topic_data.items():
-        tasks.append((topic_name, df, output_dir, 0))
+    # Show current progress
+    checkpoint_data = load_checkpoint(checkpoint_file)
+    print("\n" + "="*80)
+    print("CURRENT PROGRESS SUMMARY")
+    print("="*80)
     
-    logger.info(f"Starting optimized parallel processing of {len(tasks)} topics...")
+    completed_topics = []
+    in_progress_topics = []
+    pending_topics = []
+    
+    for topic_name, df in topic_data.items():
+        total_expected = len(df)
+        existing_count, _ = get_existing_progress(topic_name, output_dir)
+        
+        if topic_name in checkpoint_data:
+            status = checkpoint_data[topic_name].get('status', 'unknown')
+            kept = checkpoint_data[topic_name].get('total_articles_kept', existing_count)
+            
+            if status == 'complete':
+                completed_topics.append((topic_name, kept, total_expected))
+            else:
+                in_progress_topics.append((topic_name, kept, total_expected))
+        elif existing_count > 0:
+            in_progress_topics.append((topic_name, existing_count, total_expected))
+        else:
+            pending_topics.append((topic_name, total_expected))
+    
+    print(f"\n✅ COMPLETED ({len(completed_topics)}):")
+    for topic, kept, total in completed_topics:
+        print(f"  {topic:<25} {kept:>8,} / {total:>8,} ({kept/total*100:.1f}%)")
+    
+    print(f"\n🔄 IN PROGRESS ({len(in_progress_topics)}):")
+    for topic, kept, total in in_progress_topics:
+        print(f"  {topic:<25} {kept:>8,} / {total:>8,} ({kept/total*100:.1f}%)")
+    
+    print(f"\n⏳ PENDING ({len(pending_topics)}):")
+    for topic, total in pending_topics:
+        print(f"  {topic:<25} {0:>8,} / {total:>8,} (0.0%)")
+    
+    total_expected = sum(len(df) for df in topic_data.values())
+    total_kept = sum(t[1] for t in completed_topics) + sum(t[1] for t in in_progress_topics)
+    print(f"\n📊 OVERALL: {total_kept:,} / {total_expected:,} ({total_kept/total_expected*100:.1f}%)")
+    print("="*80)
+    
+    # Determine what to process
+    topics_to_process = []
+    for topic_name, df in topic_data.items():
+        if topic_name in checkpoint_data and checkpoint_data[topic_name].get('status') == 'complete':
+            continue  # Skip completed topics
+        topics_to_process.append((topic_name, df, output_dir, checkpoint_file))
+    
+    if not topics_to_process:
+        logger.info("All topics complete! Nothing to process.")
+        exit(0)
+    
+    logger.info(f"\nProcessing {len(topics_to_process)} topics...")
+    
+    # Process topics
     start_time = time.time()
     
-    # # lets try on "entertainment"
-    # process_topic_optimized(('entertainment', topic_data['entertainment'], output_dir, 0))
+    # For testing single topic:
+    # result = process_topic_with_checkpoints(topics_to_process[0])
+    # print(f"Test result: {result}")
+    # exit(0)
     
-
-    # Use all available cores
+    process_topic_with_checkpoints(("entertainment", topic_data["entertainment"], output_dir, checkpoint_file))
+    
     with Pool(cpu_count()) as pool:
-        results = pool.map(process_topic_optimized, tasks)
+        results = pool.map(process_topic_with_checkpoints, topics_to_process)
     
     end_time = time.time()
     
-    # Summary statistics
-    total_kept = sum(result[1] for result in results)
-    total_processed = sum(result[2] for result in results)
-    overall_filter_rate = ((total_processed - total_kept) / total_processed * 100) if total_processed > 0 else 0
+    # Final summary
+    total_kept_this_run = sum(r[1] for r in results)
+    total_processed_this_run = sum(r[2] for r in results)
     
-    logger.info(f"COMPREHENSIVE CLEANING COMPLETE in {end_time - start_time:.2f} seconds")
-    logger.info(f"Total articles processed: {total_processed:,}")
-    logger.info(f"Total articles kept: {total_kept:,}")
-    logger.info(f"Overall filter rate: {overall_filter_rate:.1f}%")
-    logger.info(f"Processing rate: {total_processed / (end_time - start_time):.0f} articles/second")
+    logger.info(f"\n🎉 SESSION COMPLETE in {end_time - start_time:.2f} seconds")
+    logger.info(f"Articles processed this session: {total_processed_this_run:,}")
+    logger.info(f"Articles kept this session: {sum(r[1] - get_existing_progress(r[0], output_dir)[0] for r in results):,}")
+    logger.info(f"Processing rate: {total_processed_this_run / (end_time - start_time):.0f} articles/second")
     
-    # Per-topic summary
-    for topic_name, kept, processed, _ in results:
-        rate = (kept / processed * 100) if processed > 0 else 0
-        logger.info(f"  {topic_name}: {kept:,}/{processed:,} ({rate:.1f}% kept)")
+    # Update final checkpoint
+    checkpoint_data = load_checkpoint(checkpoint_file)
+    checkpoint_data['last_session'] = {
+        'timestamp': time.time(),
+        'topics_processed': len(results),
+        'total_processed': total_processed_this_run
+    }
+    save_checkpoint(checkpoint_file, checkpoint_data)
+    
+    logger.info(f"Progress saved to: {checkpoint_file}")
