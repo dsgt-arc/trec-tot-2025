@@ -20,12 +20,113 @@ from templates import (
 # Configuration
 # MODEL = "google/gemma-3-12b-it"
 MODEL = "openai/gpt-4o-mini"
+# MODEL = "google/gemini-2.5-flash-lite"
 
 # Initialize OpenAI client
 client = OpenAI(
     base_url="https://openrouter.ai/api/v1",
     api_key=os.getenv("OPENROUTER_API_KEY")
 )
+
+# Global list to track warnings
+warning_records = []
+
+# Global list to track failed entries
+failed_records = []
+
+def log_failed_entry(query_id, entity_id, title, error_message):
+    """
+    Logs a failed entry for later output to TSV file.
+    
+    Args:
+        query_id (str): Query ID
+        entity_id (str): Entity ID
+        title (str): Entity title
+        error_message (str): Error message describing the failure
+    """
+    failed_record = {
+        'query_id': query_id or '',
+        'entity_id': entity_id or '',
+        'title': title or '',
+        'error_message': error_message
+    }
+    failed_records.append(failed_record)
+
+def save_failed_entries_to_file(output_file_path):
+    """
+    Saves all failed entries to a TSV file.
+    
+    Args:
+        output_file_path (str): Path to save the failed entries TSV file
+    """
+    if not failed_records:
+        return
+    
+    # Create output directory if it doesn't exist
+    os.makedirs(os.path.dirname(output_file_path), exist_ok=True)
+    
+    # Check if file exists to determine if we need to write header
+    file_exists = os.path.isfile(output_file_path)
+    
+    with open(output_file_path, "a", encoding="utf-8", newline="") as outfile:
+        fieldnames = ["query_id", "entity_id", "title", "error_message"]
+        writer = csv.DictWriter(outfile, fieldnames=fieldnames, delimiter="\t")
+        
+        # Write header if file is new
+        if not file_exists:
+            writer.writeheader()
+            
+        for record in failed_records:
+            writer.writerow(record)
+
+def log_warning_to_file(warning_type, message, target_object=None, entity_id=None, query_id=None):
+    """
+    Logs a warning and tracks it for later output to TSV file.
+    
+    Args:
+        warning_type (str): Type of warning
+        message (str): Warning message
+        target_object (str, optional): Target object name
+        entity_id (str, optional): Entity ID
+        query_id (str, optional): Query ID
+    """
+    logging.warning(message)
+    
+    warning_record = {
+        'query_id': query_id or '',
+        'entity_id': entity_id or '',
+        'target_object': target_object or '',
+        'warning_type': warning_type,
+        'message': message
+    }
+    warning_records.append(warning_record)
+
+def save_warnings_to_file(output_file_path):
+    """
+    Saves all collected warnings to a TSV file.
+    
+    Args:
+        output_file_path (str): Path to save the warnings TSV file
+    """
+    if not warning_records:
+        return
+    
+    # Create output directory if it doesn't exist
+    os.makedirs(os.path.dirname(output_file_path), exist_ok=True)
+    
+    # Check if file exists to determine if we need to write header
+    file_exists = os.path.isfile(output_file_path)
+    
+    with open(output_file_path, "a", encoding="utf-8", newline="") as outfile:
+        fieldnames = ["query_id", "entity_id", "target_object", "warning_type", "message"]
+        writer = csv.DictWriter(outfile, fieldnames=fieldnames, delimiter="\t")
+        
+        # Write header if file is new
+        if not file_exists:
+            writer.writeheader()
+            
+        for record in warning_records:
+            writer.writerow(record)
 
 def map_category_to_topic(category):
     """
@@ -136,12 +237,15 @@ def split_document(document, max_paragraphs=None):
     return filtered_paragraphs
 
 
-def extract_code_block_content(response):
+def extract_code_block_content(response, target_object=None, entity_id=None, query_id=None):
     """
     Extracts content from the first code block in the response.
     
     Args:
         response (str): The response text that may contain code blocks
+        target_object (str, optional): Target object name for warning tracking
+        entity_id (str, optional): Entity ID for warning tracking
+        query_id (str, optional): Query ID for warning tracking
         
     Returns:
         str: Content from the first code block, or the whole response if no code block found
@@ -161,10 +265,18 @@ def extract_code_block_content(response):
             print("Found code block content, using it as post content")
             return code_content.strip()
         else:
-            logging.warning("Code block found but is empty, using whole response as post content")
+            log_warning_to_file(
+                "empty_code_block",
+                "Code block found but is empty, using whole response as post content",
+                target_object, entity_id, query_id
+            )
             return response
     else:
-        logging.warning("No code block found in response, using whole response as post content")
+        log_warning_to_file(
+            "no_code_block",
+            "No code block found in response, using whole response as post content",
+            target_object, entity_id, query_id
+        )
         return response
 
 
@@ -283,7 +395,7 @@ def generate_single(target_object, topic, output_file_path, wikipedia_url, resul
         print("Summarizing content...")
         content_type = get_content_type(topic)
         summarization = summarize_text(doc, content_type)
-        
+
         paragraphs = split_document(summarization)
         
         if not paragraphs:
@@ -319,11 +431,15 @@ def generate_single(target_object, topic, output_file_path, wikipedia_url, resul
         print(f"Saved detailed results to: {json_filename}")
         
         # Extract content from code block or use whole response
-        post_content = extract_code_block_content(response)
+        post_content = extract_code_block_content(response, target_object, entity_id, query_id)
 
         # Validate that target object name doesn't appear in response
         if target_object.lower() in post_content.lower():
-            logging.warning(f"Generated post contains the target object name: {target_object}")
+            log_warning_to_file(
+                "target_name_in_response",
+                f"Generated post contains the target object name: {target_object}",
+                target_object, entity_id, query_id
+            )
 
         # Process response for TSV output
         processed_response = post_content.replace("\n", " ").strip('"')
@@ -369,9 +485,11 @@ def main():
     print("Available topics:", list_available_topics())
     
     # Configuration
-    tsv_file_path = "outputs/dev3_first_100_entity_classification.tsv"
-    output_file = "outputs/generated_query/queries.tsv"
-    json_dir = "outputs/generated_query/"
+    tsv_file_path = "outputs/classification/dev3_first_100_entity_classification.tsv"
+    output_file = f"outputs/generated_query/{MODEL.replace('/', '_')}/queries.tsv"
+    json_dir = f"outputs/generated_query/{MODEL.replace('/', '_')}/json_files/"
+    warnings_file = f"outputs/generated_query/{MODEL.replace('/', '_')}/warnings.tsv"
+    failed_file = f"outputs/generated_query/{MODEL.replace('/', '_')}/failed_entries.tsv"
     
     # Ensure output directories exist
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
@@ -387,7 +505,7 @@ def main():
         successful_count = 0
         failed_count = 0
         
-        for i, entity in enumerate(entities[0:1], 1):
+        for i, entity in enumerate(entities[44:], 1):
             print(f"\n[{i}/{len(entities)}] Processing: {entity['title']} (Category: {entity['category']}, Topic: {entity['topic']})")
             
             try:
@@ -401,11 +519,19 @@ def main():
                     query_id=entity['query_id']
                 )
                 successful_count += 1
-                print(f"✓ Successfully processed: {entity['title']}")
                 
             except Exception as e:
                 failed_count += 1
-                print(f"✗ Failed to process {entity['title']}: {e}")
+                error_message = str(e)
+                print(f"✗ Failed to process {entity['title']}: {error_message}")
+                
+                # Log the failed entry
+                log_failed_entry(
+                    query_id=entity['query_id'],
+                    entity_id=entity['entity_id'],
+                    title=entity['title'],
+                    error_message=error_message
+                )
                 continue
         
         print(f"\n=== Processing Complete ===")
@@ -414,8 +540,31 @@ def main():
         print(f"Total: {len(entities)}")
         print(f"Output saved to: {output_file}")
         
+        # Save warnings to file
+        if warning_records:
+            save_warnings_to_file(warnings_file)
+            print(f"Warnings saved to: {warnings_file}")
+            print(f"Total warnings: {len(warning_records)}")
+        else:
+            print("No warnings recorded.")
+        
+        # Save failed entries to file
+        if failed_records:
+            save_failed_entries_to_file(failed_file)
+            print(f"Failed entries saved to: {failed_file}")
+            print(f"Total failed entries: {len(failed_records)}")
+        else:
+            print("No failed entries recorded.")
+        
     except Exception as e:
         print(f"Failed to process TSV file: {e}")
+        # Still save warnings and failed entries if any were collected before the error
+        if warning_records:
+            save_warnings_to_file(warnings_file)
+            print(f"Warnings saved to: {warnings_file}")
+        if failed_records:
+            save_failed_entries_to_file(failed_file)
+            print(f"Failed entries saved to: {failed_file}")
 
 
 if __name__ == "__main__":

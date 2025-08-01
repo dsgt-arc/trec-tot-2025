@@ -140,10 +140,11 @@ def get_system_message(topic):
     Raises:
         ValueError: If topic is not supported
     """
-    if topic not in SYSTEM_MESSAGES:
-        raise ValueError(f"Unsupported topic: {topic}. Supported topics: {list(SYSTEM_MESSAGES.keys())}")
-    
-    return SYSTEM_MESSAGES[topic]
+    if topic not in TEMPLATES:
+        raise ValueError(f"Unsupported topic: {topic}. Supported topics: {list(TEMPLATES.keys())}")
+
+    msg = f"You are a user on an online forum and want to ask a {topic} name on the tip of your tongue."
+    return msg
 
 
 def get_content_type(topic):
