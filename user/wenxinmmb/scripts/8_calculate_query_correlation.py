@@ -83,11 +83,12 @@ def load_queries_from_jsonl(file_path):
 
 # Load queries from JSONL files
 path1 = '/home/wenxin/project/data/2025/dev3-2025/queries-first-100.jsonl'
-path2 = 'outputs/random_200_queries.jsonl'
+path2 = '/home/wenxin/project/data/2025/dev3-gpt4o-2025/queries.jsonl'
 
 queries_set1 = load_queries_from_jsonl(path1)
-# queries_set2 = load_queries_from_jsonl('/home/wenxin/project/data/2025/dev3-g1-2025/queries.jsonl')
 queries_set2 = load_queries_from_jsonl(path2)
+
+print(f'Embedding used: {embedding_model}')
 
 print(f"Loaded {len(queries_set1)} queries from {path1}")
 print(f"Loaded {len(queries_set2)} queries from {path2}")
@@ -97,17 +98,3 @@ print(f"Pearson correlation: {results['pearson']['correlation']:.4f}")
 print(f"Pearson P-value: {results['pearson']['p_value']:.4f}")
 print(f"Kendall's Tau correlation: {results['kendall']['correlation']:.4f}")
 print(f"Kendall's Tau P-value: {results['kendall']['p_value']:.4f}")
-
-
-# queries_set3 = load_queries_from_jsonl('/home/wenxin/project/data/2025/dev3-o4-2025/queries.jsonl')
-
-# print(f"\nLoaded {len(queries_set1)} queries from dev3-2025")
-# print(f"Loaded {len(queries_set3)} queries from dev3-o4-2025")
-
-# results = correlation_embeddings(queries_set1, queries_set3)
-# print(f"Pearson correlation set 1 and set 3: {results['pearson']['correlation']:.4f}")
-# print(f"Pearson P-value: {results['pearson']['p_value']:.4f}")
-# print(f"Kendall's Tau correlation set 1 and set 3: {results['kendall']['correlation']:.4f}")
-# print(f"Kendall's Tau P-value: {results['kendall']['p_value']:.4f}")
-
-print(f'Embedding used: {embedding_model}')

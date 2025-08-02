@@ -32,6 +32,12 @@ Pearson correlation set 1 and set 5: 0.0784
 Pearson P-value: 0.1251
 Kendall's Tau correlation: 0.0516
 Kendall's Tau P-value: 0.1313
+
+Original vs. query from gpt-4o-2024-08-06
+Pearson correlation: 0.9444
+Pearson P-value: 0.0000
+Kendall's Tau correlation: 0.7902
+Kendall's Tau P-value: 0.0000
 ```
 
 ![Query Correlation Matrices](query_correlation_matrices.png)
@@ -59,6 +65,13 @@ recip_rank              all     0.0913
 recall_1000             all     0.6100
 ndcg_cut_10             all     0.0899
 ndcg_cut_1000           all     0.1657
+
+llm query elicitation (openai/gpt-4o-2024-08-06)
+$ trec_eval -m ndcg_cut.10,1000 -m recall.1000 -m recip_rank -c $DATA_PATH/dev3-2025/qrel-first-100.txt dev3-gpt4o.txt
+recip_rank              all     0.0754
+recall_1000             all     0.5900
+ndcg_cut_10             all     0.0826
+ndcg_cut_1000           all     0.1524
 ```
 
 ## 3. LLM retrieval results
@@ -95,4 +108,13 @@ recip_rank              all     0.3860
 recall_1000             all     0.6100
 ndcg_cut_10             all     0.4283
 ndcg_cut_1000           all     0.4382
+```
+
+```
+llm query elicitation (openai/gpt-4o-2024-08-06)
+$ trec_eval -m ndcg_cut.10,1000 -m recall.1000 -m recip_rank -c /home/wenxin/project/data/2025/dev3-2025/qrel-first-100.txt output/gmn-flash-0801/dev3-gpt4o.txt
+recip_rank              all     0.2895
+recall_1000             all     0.4800
+ndcg_cut_10             all     0.3185
+ndcg_cut_1000           all     0.3340
 ```

@@ -56,4 +56,4 @@ python ./baseline.py --output runs/bm25-2/ --index /home/wenxin/project/pyterrri
 ### Unzip the run result
 $ gzip -d runs/bm25-2/run.txt.gz
 
-trec_eval -m ndcg_cut.10,1000 -m recall.1000  -m recip_rank $DATA_PATH/dev1-2025/qrel.txt run.txt
+trec_eval -m ndcg_cut.10,1000 -m recall.1000 -m recip_rank $DATA_PATH/dev1-2025/qrel.txt run.txt

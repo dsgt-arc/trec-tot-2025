@@ -2,6 +2,7 @@
 Refined LLM Query Generation Module
 Extracted and refined from generate_gpt_queries.py for running generate_single function
 """
+import argparse
 import csv
 import json
 import logging
@@ -19,8 +20,9 @@ from templates import (
 
 # Configuration
 # MODEL = "google/gemma-3-12b-it"
-MODEL = "openai/gpt-4o-mini"
+# MODEL = "openai/gpt-4o-mini"
 # MODEL = "google/gemini-2.5-flash-lite"
+MODEL = "openai/gpt-4o-2024-08-06"
 
 # Initialize OpenAI client
 client = OpenAI(
@@ -481,6 +483,12 @@ def main():
     """
     Main function to process entities from TSV file and generate forum posts.
     """
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description="Generate LLM queries from entity classification TSV")
+    parser.add_argument("--start", type=int, default=0, help="Start index for processing entities (default: 0)")
+    parser.add_argument("--end", type=int, default=None, help="End index for processing entities (default: all entities)")
+    args = parser.parse_args()
+    
     # Show available topics
     print("Available topics:", list_available_topics())
     
@@ -501,12 +509,29 @@ def main():
         entities = read_entities_from_tsv(tsv_file_path)
         print(f"Found {len(entities)} entities to process")
         
+        # Apply start and end indices
+        start_idx = args.start
+        end_idx = args.end if args.end is not None else len(entities)
+        
+        # Validate indices
+        if start_idx < 0:
+            start_idx = 0
+        if end_idx > len(entities):
+            end_idx = len(entities)
+        if start_idx >= end_idx:
+            print(f"Error: start index ({start_idx}) must be less than end index ({end_idx})")
+            return
+        
+        entities_to_process = entities[start_idx:end_idx]
+        print(f"Processing entities from index {start_idx} to {end_idx-1} ({len(entities_to_process)} entities)")
+        
         # Process each entity
         successful_count = 0
         failed_count = 0
         
-        for i, entity in enumerate(entities[44:], 1):
-            print(f"\n[{i}/{len(entities)}] Processing: {entity['title']} (Category: {entity['category']}, Topic: {entity['topic']})")
+        for i, entity in enumerate(entities_to_process, 1):
+            actual_index = start_idx + i - 1
+            print(f"\n[{i}/{len(entities_to_process)}] (Index {actual_index}) Processing: {entity['title']} (Category: {entity['category']}, Topic: {entity['topic']})")
             
             try:
                 result = generate_single(
@@ -535,9 +560,10 @@ def main():
                 continue
         
         print(f"\n=== Processing Complete ===")
+        print(f"Processed range: {start_idx} to {end_idx-1}")
         print(f"Successful: {successful_count}")
         print(f"Failed: {failed_count}")
-        print(f"Total: {len(entities)}")
+        print(f"Total processed: {len(entities_to_process)}")
         print(f"Output saved to: {output_file}")
         
         # Save warnings to file
