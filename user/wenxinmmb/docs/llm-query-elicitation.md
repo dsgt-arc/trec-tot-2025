@@ -1,120 +1,119 @@
 # Overview
 - Reproduce LLM query generation from https://github.com/kimdanny/llm-tot-query-elicitation  
 - Setup: test first 100 queries in dev3
-- Models: compare queries generated from gemini-2.5-flash-lite and gpt-o4-mini with the orignal trec queries
+- Compare queries generated from gemini-2.5-flash-lite, gpt-o4-mini and gpt-4o with the orignal trec queries using the following metrics
+    - Query text embedding correlation
+    - sparse retrieval results comparision
+    - llm retrieval results comparision
+
 
 # Results
 ## 1. Correlation coeffients of query embeddings
 Embedding model: all-MiniLM-L6-v2
+
+![Query Correlation Matrices](query_correlation_matrices.png)
+
+Original vs. query from gemini-flash-lite
 ```
-set 1: original TREC query
-set 2: query from gemini-flash-lite
-set 3: query from gpt-4o-mini
-set 4: query from first 200 words in Wikipedia page  
-set 5: random text 200 words
-
-Pearson correlation set 1 and set 2: 0.9372  
+Pearson correlation: 0.9372  
 Pearson P-value: 0.0000  
-Kendall's Tau correlation set 1 and set 2: 0.7771  
+Kendall's Tau correlation: 0.7771  
 Kendall's Tau P-value: 0.0000  
+```
 
-Pearson correlation set 1 and set 3: 0.9375  
+Original vs. query from gpt-4o-mini
+```
+Pearson correlation: 0.9375  
 Pearson P-value: 0.0000  
-Kendall's Tau correlation set 1 and set 3: 0.7772  
+Kendall's Tau correlation: 0.7772  
 Kendall's Tau P-value: 0.0000  
-
-Pearson correlation set 1 and set 4: 0.6199  
-Pearson P-value: 0.0000  
-Kendall's Tau correlation set 1 and set 4: 0.4257
-Kendall's Tau P-value: 0.0000
-
-Pearson correlation set 1 and set 5: 0.0784
-Pearson P-value: 0.1251
-Kendall's Tau correlation: 0.0516
-Kendall's Tau P-value: 0.1313
+```
 
 Original vs. query from gpt-4o-2024-08-06
+```
 Pearson correlation: 0.9444
 Pearson P-value: 0.0000
 Kendall's Tau correlation: 0.7902
 Kendall's Tau P-value: 0.0000
 ```
 
-![Query Correlation Matrices](query_correlation_matrices.png)
-
-## 2. pyterrier bm25 results
+Original vs. query from first 200 words in Wikipedia page  
 ```
-The original
-$ trec_eval -m ndcg_cut.10,1000 -m recall.1000 -m recip_rank -c /home/wenxin/project/data/2025/dev3-2025/qrel-first-100.txt ../bm25-2/dev3/run.txt
-recip_rank              all     0.3038
-recall_1000             all     0.8100
-ndcg_cut_10             all     0.3302
-ndcg_cut_1000           all     0.3894
-
-llm query elicitation (google/gemini-2.5-flash-lite)
-trec_eval -m ndcg_cut.10,1000 -m recall.1000 -m recip_rank -c /home/wenxin/project/data/2025/dev3-g1-2025/qrel.txt 
-$ trec_eval -m ndcg_cut.10,1000 -m recall.1000 -m recip_rank -c /home/wenxin/project/data/2025/dev3-g1-2025/qrel.txt dev3-g1-run.txt
-recip_rank              all     0.0896
-recall_1000             all     0.5500
-ndcg_cut_10             all     0.0999
-ndcg_cut_1000           all     0.1583
-
-llm query elicitation (openai/gpt-4o-mini)
-$ trec_eval -m ndcg_cut.10,1000 -m recall.1000 -m recip_rank -c /home/wenxin/project/data/2025/dev3-g1-2025/qrel.txt dev3-o4-run.txt
-recip_rank              all     0.0913
-recall_1000             all     0.6100
-ndcg_cut_10             all     0.0899
-ndcg_cut_1000           all     0.1657
-
-llm query elicitation (openai/gpt-4o-2024-08-06)
-$ trec_eval -m ndcg_cut.10,1000 -m recall.1000 -m recip_rank -c $DATA_PATH/dev3-2025/qrel-first-100.txt dev3-gpt4o.txt
-recip_rank              all     0.0754
-recall_1000             all     0.5900
-ndcg_cut_10             all     0.0826
-ndcg_cut_1000           all     0.1524
+Pearson correlation: 0.6199  
+Pearson P-value: 0.0000  
+Kendall's Tau correlation set 1 and set 4: 0.4257
+Kendall's Tau P-value: 0.0000
 ```
 
-## 3. LLM retrieval results
+Original vs. random text 200 words
+```
+Pearson correlation: 0.0784
+Pearson P-value: 0.1251
+Kendall's Tau correlation: 0.0516
+Kendall's Tau P-value: 0.1313
+```
+
+## TREC Evaluation Results
+
+![Ranking results visualization](ranking_results_relative.png)
+![Ranking results radar visualization](ranking_results_radar.png)
+
+### LLM Retrieval Performance
 
 Retrieval model config:
 - gemini-2.5-flash
 - context length: 5000
 - temperature: 0
-
 ```
-TREC original dev3 queries
-$ trec_eval -m ndcg_cut.10,1000 -m recall.1000 -m recip_rank -c /home/wenxin/project/data/2025/dev3-2025/qrel-first-100.txt output/gmn-flash-0801/dev3-org.txt
+--------------------------------------------------
+Original Queries:
+  Reciprocal Rank: 0.4381
+  Recall@1000:     0.6400
+  NDCG@10:         0.4792
+  NDCG@1000:       0.4862
 
-recip_rank              all     0.4381
-recall_1000             all     0.6400
-ndcg_cut_10             all     0.4792
-ndcg_cut_1000           all     0.4862
-```
+Gemini-2.5-Flash-Lite:
+  Reciprocal Rank: 0.3797
+  Recall@1000:     0.6000
+  NDCG@10:         0.4211
+  NDCG@1000:       0.4311
 
-```
-llm query elicitation (google/gemini-2.5-flash-lite)
-$ trec_eval -m ndcg_cut.10,1000 -m recall.1000 -m recip_rank -c /home/wenxin/project/data/2025/dev3-2025/qrel-first-100.txt output/gmn-flash-0801/dev3-g1.txt
+GPT-4o-Mini:
+  Reciprocal Rank: 0.3860
+  Recall@1000:     0.6100
+  NDCG@10:         0.4283
+  NDCG@1000:       0.4382
 
-recip_rank              all     0.3797
-recall_1000             all     0.6000
-ndcg_cut_10             all     0.4211
-ndcg_cut_1000           all     0.4311
-```
-
-```
-llm query elicitation (openai/gpt-4o-mini)
-$ trec_eval -m ndcg_cut.10,1000 -m recall.1000 -m recip_rank -c /home/wenxin/project/data/2025/dev3-2025/qrel-first-100.txt output/gmn-flash-0801/dev3-o4.txt
-recip_rank              all     0.3860
-recall_1000             all     0.6100
-ndcg_cut_10             all     0.4283
-ndcg_cut_1000           all     0.4382
+GPT-4o-2024-08-06:
+  Reciprocal Rank: 0.2895
+  Recall@1000:     0.4800
+  NDCG@10:         0.3185
+  NDCG@1000:       0.3340
 ```
 
+### PYTERRIER BM25 Retrieval Performance
 ```
-llm query elicitation (openai/gpt-4o-2024-08-06)
-$ trec_eval -m ndcg_cut.10,1000 -m recall.1000 -m recip_rank -c /home/wenxin/project/data/2025/dev3-2025/qrel-first-100.txt output/gmn-flash-0801/dev3-gpt4o.txt
-recip_rank              all     0.2895
-recall_1000             all     0.4800
-ndcg_cut_10             all     0.3185
-ndcg_cut_1000           all     0.3340
+Original Queries:
+  Reciprocal Rank: 0.3038
+  Recall@1000:     0.8100
+  NDCG@10:         0.3302
+  NDCG@1000:       0.3894
+
+Gemini-2.5-Flash-Lite:
+  Reciprocal Rank: 0.0896
+  Recall@1000:     0.5500
+  NDCG@10:         0.0999
+  NDCG@1000:       0.1583
+
+GPT-4o-Mini:
+  Reciprocal Rank: 0.0913
+  Recall@1000:     0.6100
+  NDCG@10:         0.0899
+  NDCG@1000:       0.1657
+
+GPT-4o-2024-08-06:
+  Reciprocal Rank: 0.0754
+  Recall@1000:     0.5900
+  NDCG@10:         0.0826
+  NDCG@1000:       0.1524
 ```
