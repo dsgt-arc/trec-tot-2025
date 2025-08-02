@@ -181,6 +181,8 @@ if __name__ == '__main__':
     parser.add_argument("--batch_size", default=16, type=int, help="batch size (eval) ")
     parser.add_argument("--data_version", default="2025",
                         help="data version to use, e.g., 2024 or 2025")
+    parser.add_argument("--min_score", default=70, type=int, help="minimum fuzzy matching score threshold")
+    parser.add_argument("--bm25_k", default=10, type=int, help="number of BM25 results to retrieve")
 
     logging.basicConfig(level=logging.INFO)
     log.setLevel(logging.INFO)
@@ -250,8 +252,8 @@ if __name__ == '__main__':
     matches = Counter()
     unmatched = set()
     unmatched_props = {}
-    MIN_SCORE = 70 # original: 100
-    BM25_K = 10 # original 5
+    MIN_SCORE = args.min_score
+    BM25_K = args.bm25_k
 
     scorer = fuzz.ratio
     for title in tqdm(titles):
