@@ -5,6 +5,9 @@
     - Query text embedding correlation
     - sparse retrieval results comparision
     - llm retrieval results comparision
+- Also use two baselines for comparision
+    - random 200 words
+    - first 200 words of wikipedia pages
 
 
 # Results
@@ -55,8 +58,8 @@ Kendall's Tau P-value: 0.1313
 
 ## TREC Evaluation Results
 
-![Ranking results visualization](ranking_results_relative.png)
-![Ranking results radar visualization](ranking_results_radar.png)
+![Ranking results visualization](llm_query_elic_retrieval_comparison.png)
+![Ranking results visualization for dense retrieval](llm_query_elic_dense_retrieval.png)
 
 ### LLM Retrieval Performance
 
@@ -64,8 +67,8 @@ Retrieval model config:
 - gemini-2.5-flash
 - context length: 5000
 - temperature: 0
+
 ```
---------------------------------------------------
 Original Queries:
   Reciprocal Rank: 0.4381
   Recall@1000:     0.6400
@@ -116,4 +119,43 @@ GPT-4o-2024-08-06:
   Recall@1000:     0.5900
   NDCG@10:         0.0826
   NDCG@1000:       0.1524
+```
+
+### BGE-M3 Dense Retrieval Performance
+```
+Original Queries:
+  Reciprocal Rank: 0.1545
+  Recall@1000:     0.6400
+  NDCG@10:         0.1667
+  NDCG@1000:       0.2315
+
+Gemini-2.5-Flash-Lite:
+  Reciprocal Rank: 0.0590
+  Recall@1000:     0.5500
+  NDCG@10:         0.0580
+  NDCG@1000:       0.1337
+
+GPT-4o-Mini:
+  Reciprocal Rank: 0.0644
+  Recall@1000:     0.4800
+  NDCG@10:         0.0669
+  NDCG@1000:       0.1224
+
+GPT-4o-2024-08-06:
+  Reciprocal Rank: 0.0366
+  Recall@1000:     0.3300
+  NDCG@10:         0.0375
+  NDCG@1000:       0.0822
+
+Wikipedia Text (first 200 words):
+  Reciprocal Rank: 0.9950
+  Recall@1000:     1.0000
+  NDCG@10:         0.9963
+  NDCG@1000:       0.9963
+
+Random Text:
+  Reciprocal Rank: 0.0000
+  Recall@1000:     0.0100
+  NDCG@10:         0.0000
+  NDCG@1000:       0.0010
 ```
