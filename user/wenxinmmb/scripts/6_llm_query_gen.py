@@ -1,6 +1,10 @@
 """
 Refined LLM Query Generation Module
 Extracted and refined from generate_gpt_queries.py for running generate_single function
+
+Example:
+python 6_llm_query_gen.py --use-generic --start 10 --end 100 --paragraphs-file outputs/generated_query/openai_gpt-4o-mini/json_files/
+
 """
 import argparse
 import csv
@@ -19,10 +23,15 @@ from templates import (
 )
 
 # Configuration
-# MODEL = "google/gemma-3-12b-it"
-# MODEL = "openai/gpt-4o-mini"
-# MODEL = "google/gemini-2.5-flash-lite"
-MODEL = "openai/gpt-4o-2024-08-06"
+MODELS = [
+    "openai/gpt-4o-mini",
+    "google/gemini-2.5-flash-lite", 
+    "openai/gpt-4o-2024-08-06"
+]
+MODEL = MODELS[0]  # Default to first model
+
+# Maximum input text length for LLM processing (characters)
+MAX_INPUT_LENGTH = 58000
 
 # Initialize OpenAI client
 client = OpenAI(
@@ -153,12 +162,13 @@ def map_category_to_topic(category):
     return mapped_topic
 
 
-def read_entities_from_tsv(tsv_file_path):
+def read_entities_from_tsv(tsv_file_path, use_generic=False):
     """
     Reads entities from the TSV file.
     
     Args:
         tsv_file_path (str): Path to the TSV file
+        use_generic (bool): If True, use 'generic' topic for all entities instead of mapping from category
         
     Returns:
         list: List of dictionaries containing entity information
@@ -168,13 +178,18 @@ def read_entities_from_tsv(tsv_file_path):
         entities = []
         
         for _, row in df.iterrows():
+            if use_generic:
+                topic = 'generic'
+            else:
+                topic = map_category_to_topic(row['category'])
+                
             entity = {
                 'query_id': row['query_id'],
                 'entity_id': row['entity_id'],
                 'title': row['title'],
                 'category': row['category'],
                 'url': row['url'],
-                'topic': map_category_to_topic(row['category'])
+                'topic': topic
             }
             entities.append(entity)
             
@@ -239,6 +254,62 @@ def split_document(document, max_paragraphs=None):
     return filtered_paragraphs
 
 
+def read_paragraphs_from_file(paragraphs_dir, target_object):
+    """
+    Reads paragraphs from a JSON file in the specified directory.
+    
+    Args:
+        paragraphs_dir (str): Directory containing the JSON files
+        target_object (str): The name of the target object (used to generate filename)
+        
+    Returns:
+        list: List of paragraph strings from the JSON file
+        
+    Raises:
+        Exception: If file cannot be read or doesn't exist
+    """
+    try:
+        json_filename = generate_json_filename(target_object)
+        file_path = os.path.join(paragraphs_dir, json_filename)
+        
+        if not os.path.exists(file_path):
+            raise Exception(f"Paragraphs JSON file not found: {file_path}")
+        
+        with open(file_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        if 'paragraphs' not in data:
+            raise Exception(f"'paragraphs' field not found in JSON file: {file_path}")
+        
+        paragraphs = data['paragraphs']
+        
+        if not isinstance(paragraphs, list):
+            raise Exception(f"'paragraphs' field must be a list in JSON file: {file_path}")
+        
+        if not paragraphs:
+            raise Exception(f"No paragraphs found in JSON file: {file_path}")
+            
+        return paragraphs
+        
+    except json.JSONDecodeError as e:
+        raise Exception(f"Invalid JSON format in file '{file_path}': {e}")
+    except Exception as e:
+        raise Exception(f"Failed to read paragraphs from '{file_path}': {e}")
+
+
+def generate_json_filename(target_object):
+    """
+    Generates a JSON filename from the target object name.
+    
+    Args:
+        target_object (str): The name of the target object
+        
+    Returns:
+        str: Filename with .json extension
+    """
+    return f'{target_object.replace(" ", "_").replace("/", "_")}.json'
+
+
 def extract_code_block_content(response, target_object=None, entity_id=None, query_id=None):
     """
     Extracts content from the first code block in the response.
@@ -298,14 +369,25 @@ def summarize_text(text, content_type="movie"):
     else:
         input_text = text
     
+    # Capped the input length to be less than MAX_INPUT_LENGTH characters
+    if len(input_text) > MAX_INPUT_LENGTH:
+        input_text = input_text[:MAX_INPUT_LENGTH]
+        log_warning_to_file(
+            "input_length_exceeded",
+            f"Input text length exceeded {MAX_INPUT_LENGTH} characters, truncating to fit",
+            content_type=content_type
+        )
+    
     # Create appropriate prompt based on content type
     if content_type == "person":
         prompt = f"Please summarize the following description about a person into two paragraphs:\n\n{input_text}."
     elif content_type == "place":
         prompt = f"Please summarize the following description about a place into two paragraphs:\n\n{input_text}."
-    else:  # default to movie
+    elif content_type == "movie":
         prompt = f"Please summarize the following description about a movie into two paragraphs:\n\n{input_text}. Please focus on the plots, and ignore the director and actor names."
-    
+    else:
+        # generic 
+        prompt = f"Please summarize the following description into two paragraphs:\n\n{input_text}."
     messages = [
         {"role": "system", "content": "You are a text summarization assistant."},
         {"role": "user", "content": prompt},
@@ -366,7 +448,7 @@ def generate_post_without_name(topic, target_object, paragraphs):
         raise Exception(f"Failed to generate post: {e}")
 
 
-def generate_single(target_object, topic, output_file_path, wikipedia_url, results_dir_prefix, entity_id=None, query_id=None):
+def generate_single(target_object, topic, output_file_path, wikipedia_url, results_dir_prefix, entity_id=None, query_id=None, paragraphs_file=None):
     """
     Generates a single forum post for a given target object.
     
@@ -378,6 +460,7 @@ def generate_single(target_object, topic, output_file_path, wikipedia_url, resul
         results_dir_prefix (str): Directory prefix for saving results
         entity_id (str, optional): Entity ID from the TSV file
         query_id (str, optional): Query ID from the TSV file
+        paragraphs_file (str, optional): Directory containing JSON files with paragraphs to use instead of Wikipedia
     Returns:
         dict: Results including the generated post and metadata
     """
@@ -387,18 +470,23 @@ def generate_single(target_object, topic, output_file_path, wikipedia_url, resul
         raise ValueError(f"Invalid topic '{topic}'. Available topics: {available_topics}")
 
     try:
-        # Fetch and process document
-        print(f"Fetching Wikipedia content for: {target_object}")
-        doc = fetch_document_from_wiki_full(target_object)
-        
-        if doc.startswith("Failed") or doc.startswith("No pages"):
-            raise Exception(f"Could not fetch Wikipedia content: {doc}")
-        
-        print("Summarizing content...")
-        content_type = get_content_type(topic)
-        summarization = summarize_text(doc, content_type)
-
-        paragraphs = split_document(summarization)
+        # Get paragraphs either from file or Wikipedia
+        if paragraphs_file:
+            print(f"Reading paragraphs from directory: {paragraphs_file}")
+            paragraphs = read_paragraphs_from_file(paragraphs_file, target_object)
+            print(f"Read {len(paragraphs)} paragraphs from JSON file")
+        else:
+            # Fetch and process document from Wikipedia
+            print(f"Fetching Wikipedia content for: {target_object}")
+            doc = fetch_document_from_wiki_full(target_object)
+            
+            if doc.startswith("Failed") or doc.startswith("No pages"):
+                raise Exception(f"Could not fetch Wikipedia content: {doc}")
+            
+            print("Summarizing content...")
+            content_type = get_content_type(topic)
+            summarization = summarize_text(doc, content_type)
+            paragraphs = split_document(summarization)
         
         if not paragraphs:
             raise Exception("No valid paragraphs found after processing")
@@ -426,7 +514,7 @@ def generate_single(target_object, topic, output_file_path, wikipedia_url, resul
         }
         
         # Save to JSON file
-        json_filename = f'{target_object.replace(" ", "_").replace("/", "_")}.json'
+        json_filename = generate_json_filename(target_object)
         with open(f'{results_dir_prefix}{json_filename}', "w", encoding="utf-8") as f:
             json.dump(result, f, indent=4, ensure_ascii=False)
         
@@ -487,6 +575,8 @@ def main():
     parser = argparse.ArgumentParser(description="Generate LLM queries from entity classification TSV")
     parser.add_argument("--start", type=int, default=0, help="Start index for processing entities (default: 0)")
     parser.add_argument("--end", type=int, default=None, help="End index for processing entities (default: all entities)")
+    parser.add_argument("--use-generic", action="store_true", help="Use 'generic' topic for all entities instead of mapping from category")
+    parser.add_argument("--paragraphs-file", type=str, help="Directory containing JSON files with pre-written paragraphs to use instead of fetching from Wikipedia")
     args = parser.parse_args()
     
     # Show available topics
@@ -494,10 +584,19 @@ def main():
     
     # Configuration
     tsv_file_path = "outputs/classification/dev3_first_100_entity_classification.tsv"
-    output_file = f"outputs/generated_query/{MODEL.replace('/', '_')}/queries.tsv"
-    json_dir = f"outputs/generated_query/{MODEL.replace('/', '_')}/json_files/"
-    warnings_file = f"outputs/generated_query/{MODEL.replace('/', '_')}/warnings.tsv"
-    failed_file = f"outputs/generated_query/{MODEL.replace('/', '_')}/failed_entries.tsv"
+    
+    # Adjust output paths based on whether generic mode is used
+    model_path = MODEL.replace('/', '_')
+    if args.use_generic:
+        output_file = f"outputs/generated_query/{model_path}_generic/queries.tsv"
+        json_dir = f"outputs/generated_query/{model_path}_generic/json_files/"
+        warnings_file = f"outputs/generated_query/{model_path}_generic/warnings.tsv"
+        failed_file = f"outputs/generated_query/{model_path}_generic/failed_entries.tsv"
+    else:
+        output_file = f"outputs/generated_query/{model_path}/queries.tsv"
+        json_dir = f"outputs/generated_query/{model_path}/json_files/"
+        warnings_file = f"outputs/generated_query/{model_path}/warnings.tsv"
+        failed_file = f"outputs/generated_query/{model_path}/failed_entries.tsv"
     
     # Ensure output directories exist
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
@@ -506,8 +605,18 @@ def main():
     try:
         # Read entities from TSV file
         print(f"Reading entities from: {tsv_file_path}")
-        entities = read_entities_from_tsv(tsv_file_path)
+        entities = read_entities_from_tsv(tsv_file_path, use_generic=args.use_generic)
         print(f"Found {len(entities)} entities to process")
+        
+        if args.use_generic:
+            print("Using 'generic' topic for all entities (ignoring category from CSV)")
+        else:
+            print("Using category-based topic mapping")
+            
+        if args.paragraphs_file:
+            print(f"Using paragraphs from JSON files in directory: {args.paragraphs_file}")
+        else:
+            print("Fetching content from Wikipedia and summarizing")
         
         # Apply start and end indices
         start_idx = args.start
@@ -541,7 +650,8 @@ def main():
                     wikipedia_url=entity['url'],
                     results_dir_prefix=json_dir,
                     entity_id=entity['entity_id'],
-                    query_id=entity['query_id']
+                    query_id=entity['query_id'],
+                    paragraphs_file=args.paragraphs_file
                 )
                 successful_count += 1
                 

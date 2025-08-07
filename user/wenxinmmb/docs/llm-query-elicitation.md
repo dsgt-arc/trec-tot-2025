@@ -32,6 +32,14 @@ Kendall's Tau correlation: 0.7772
 Kendall's Tau P-value: 0.0000  
 ```
 
+Original vs query from gpt-4o-mini using generic template for query generation
+```
+Pearson correlation: 0.9147
+Pearson P-value: 0.0000
+Kendall's Tau correlation: 0.7334
+Kendall's Tau P-value: 0.0000
+```
+
 Original vs. query from gpt-4o-2024-08-06
 ```
 Pearson correlation: 0.9444
@@ -86,6 +94,12 @@ GPT-4o-Mini:
   Recall@1000:     0.6100
   NDCG@10:         0.4283
   NDCG@1000:       0.4382
+
+GPT-4o-Mini (using generic template for query generation):
+  Reciprocal Rank: 0.3917
+  Recall@1000:     0.6300
+  NDCG@10:         0.4346
+  NDCG@1000:       0.4471
 
 GPT-4o-2024-08-06:
   Reciprocal Rank: 0.2895

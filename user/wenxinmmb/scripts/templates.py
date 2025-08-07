@@ -86,25 +86,56 @@ COULD FOLLOW:
 Generate a post based on these guidelines. Wrap the post in a code block.
 """
 
+TEMPLATE_GENERIC = """
+Let's do a role play. You are now a person who vaguely remembers something called {ToTObject}. You are trying to recall the name by posting a verbose post in an online forum like Reddit describing it. Generate a post of around 200 words about {ToTObject}. Your post must describe a vague memory without revealing its exact name. People on the forum must have a hard time figuring out what you are looking for. The answer should be difficult to find in search engines, so avoid using obvious keywords. I will provide you with some basic information, and you must follow the guidelines to create a post.
+
+Information about {ToTObject}:
+{Psg}
+
+Guidelines:
+MUST FOLLOW:
+1. Reflect the imperfect nature of memory with phrases that express doubt or mixed recollections, avoiding direct phrases like "I'm not sure if it is true, but".
+2. Do not directly specify the name of what you are trying to recall.
+3. Refer to it in an ambiguous way using descriptions instead of names.
+4. Maintain a casual and conversational tone throughout the post, making sure it sounds natural and engaging without using formal structures.
+5. Provide vivid but ambiguous details to stir the reader's imagination while keeping them guessing.
+6. Use the provided information only as inspiration to craft a unique and engaging narrative, avoiding any direct replication of the given phrases.
+7. Start directly with your post, avoiding formal greetings like "Hello" or "Hey everyone."
+8. Start directly with your post, without describing your state of mind like "So, there's this", "I remember", "I've been thinking about".
+
+COULD FOLLOW:
+1. Share a personal anecdote related to what you are trying to recall, but avoid common phrases like "When I was young." Instead, find unique ways to set the scene.
+2. Focus on sensory details like the overall mood, sounds, and emotional impact of the memory, using vivid descriptions.
+3. Draw comparisons with other similar things in a nuanced way that doesn't directly echo well-known examples.
+4. Introduce a few incorrect or mixed-up details to make the recollection seem more realistic and harder to pinpoint.
+5. Describe particular scenes or moments using ambiguous terms or partial descriptions.
+6. End the post by encouraging responses with genuine, open-ended questions for help.
+
+Generate a post based on these guidelines. Wrap the post in a code block.
+"""
+
 # Template mapping for easy access
 TEMPLATES = {
     "movie": TEMPLATE_MOVIE,
     "celebrity": TEMPLATE_CELEBRITY,
-    "landmark": TEMPLATE_LANDMARK
+    "landmark": TEMPLATE_LANDMARK,
+    "generic": TEMPLATE_GENERIC
 }
 
 # System messages for different content types
 SYSTEM_MESSAGES = {
     "movie": "You are a user on an online forum and want to ask a movie name on the tip of your tongue.",
     "celebrity": "You are a user on an online forum and want to ask a celebrity name on the tip of your tongue.",
-    "landmark": "You are a user on an online forum and want to ask a landmark name on the tip of your tongue."
+    "landmark": "You are a user on an online forum and want to ask a landmark name on the tip of your tongue.",
+    "generic": "You are a user on an online forum and want to ask for something on the tip of your tongue."
 }
 
 # Content type mapping for summarization
 CONTENT_TYPE_MAP = {
     "movie": "movie",
     "celebrity": "person", 
-    "landmark": "place"
+    "landmark": "place",
+    "generic": "thing"
 }
 
 
@@ -140,11 +171,10 @@ def get_system_message(topic):
     Raises:
         ValueError: If topic is not supported
     """
-    if topic not in TEMPLATES:
-        raise ValueError(f"Unsupported topic: {topic}. Supported topics: {list(TEMPLATES.keys())}")
-
-    msg = f"You are a user on an online forum and want to ask a {topic} name on the tip of your tongue."
-    return msg
+    if topic not in SYSTEM_MESSAGES:
+        raise ValueError(f"Unsupported topic: {topic}. Supported topics: {list(SYSTEM_MESSAGES.keys())}")
+    
+    return SYSTEM_MESSAGES[topic]
 
 
 def get_content_type(topic):

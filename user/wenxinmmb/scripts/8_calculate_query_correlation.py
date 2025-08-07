@@ -83,7 +83,7 @@ def load_queries_from_jsonl(file_path):
 
 # Load queries from JSONL files
 path1 = '/home/wenxin/project/data/2025/dev3-2025/queries-first-100.jsonl'
-path2 = '/home/wenxin/project/data/2025/dev3-gpt4o-2025/queries.jsonl'
+path2 = 'outputs/generated_query/openai_gpt-4o-mini_generic/queries.jsonl'
 
 queries_set1 = load_queries_from_jsonl(path1)
 queries_set2 = load_queries_from_jsonl(path2)
