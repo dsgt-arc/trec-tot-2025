@@ -52,7 +52,7 @@ def process_pageview_file() -> bool:
                         continue
                     
                     # Continue with normal parsing
-                    if len(parts) < 3:
+                    if len(parts) < 5:
                         continue
                     
                     domain_code = parts[0]

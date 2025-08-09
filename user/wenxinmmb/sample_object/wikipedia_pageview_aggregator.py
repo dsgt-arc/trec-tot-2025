@@ -3,7 +3,7 @@
 Wikipedia Pageview Aggregator
 
 This script aggregates English Wikipedia page view counts over the period of 
-2022-nov-01 to 2023-nov-01 from Wikimedia dumps.
+2022-nov-01 to 2023-oct-31 from Wikimedia dumps.
 
 Features:
 - Downloads monthly user pageview data from Wikimedia dumps
@@ -17,12 +17,10 @@ Features:
 import os
 import sys
 import json
-import gzip
 import bz2
 import csv
 import logging
 import requests
-import urllib.parse
 from datetime import datetime, timedelta
 from pathlib import Path
 from collections import defaultdict
@@ -41,14 +39,16 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 class WikipediaPageviewAggregator:
-    def __init__(self, data_dir: str = "pageview_data", checkpoint_file: str = "aggregation_checkpoint.json"):
+    def __init__(self, data_dir: str = "tmp", output_dir: str = "outputs/page_view", checkpoint_file: str = "aggregation_checkpoint.json"):
         self.data_dir = Path(data_dir)
         self.data_dir.mkdir(exist_ok=True)
-        self.checkpoint_file = Path(checkpoint_file)
+        self.output_dir = Path(output_dir)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.checkpoint_file = self.output_dir / checkpoint_file
         self.base_url = "https://dumps.wikimedia.org/other/pageview_complete/monthly"
         
         # Page view aggregation data
-        self.page_views = defaultdict(int)  # page_title -> total_views
+        self.page_views = defaultdict(int)  # page_id -> total_views
         self.processed_months = set()
         
         # Load existing checkpoint if available
@@ -132,30 +132,43 @@ class WikipediaPageviewAggregator:
         try:
             processed_lines = 0
             english_wiki_lines = 0
+            id_null_cnt = 0
+            title_null_cnt = 0
             
             with bz2.open(filepath, 'rt', encoding='utf-8') as f:
                 for line in f:
                     processed_lines += 1
                     
-                    if processed_lines % 1000000 == 0:
+                    if processed_lines % 10000000 == 0:
                         logger.info(f"Processed {processed_lines} lines, found {english_wiki_lines} English Wikipedia entries")
                     
                     try:
-                        # Parse line: domain_code page_title count_views total_response_size
-                        parts = line.strip().split('\t')
-                        if len(parts) < 3:
+                        # Check if line starts with 'en.wikipedia' and print debug info
+                        if not line.strip().startswith('en.wikipedia'):
+                            continue
+
+                        # Parse line
+                        parts = line.strip().split(' ')
+                        # Continue with normal parsing
+                        if len(parts) < 5:
                             continue
                         
                         domain_code = parts[0]
-                        page_title = parts[1]
-                        count_views = int(parts[2])
-                        
+
                         # Filter for English Wikipedia only
                         if domain_code == 'en.wikipedia':
-                            # Decode URL-encoded page titles
+                            page_title = parts[1]
+                            id = parts[2]
+                            count_views = int(parts[4])
                             try:
-                                decoded_title = urllib.parse.unquote(page_title, encoding='utf-8')
-                                self.page_views[decoded_title] += count_views
+                                if id == 'null' or id == '-':
+                                    id_null_cnt += 1
+                                    continue
+                                if page_title == 'null' or page_title == '-':
+                                    title_null_cnt += 1
+                                    continue
+
+                                self.page_views[id] += count_views
                                 english_wiki_lines += 1
                             except Exception as decode_error:
                                 logger.warning(f"Failed to decode title {page_title}: {decode_error}")
@@ -166,6 +179,7 @@ class WikipediaPageviewAggregator:
                         continue
             
             logger.info(f"Finished processing {filename}: {processed_lines} total lines, {english_wiki_lines} English Wikipedia entries")
+            logger.info(f"Skipped {id_null_cnt} entries with null IDs, {title_null_cnt} entries with null/missing titles")
             
             # Mark month as processed
             self.processed_months.add(month_id)
@@ -226,7 +240,7 @@ class WikipediaPageviewAggregator:
     
     def save_results(self, output_file: str = "wikipedia_pageviews_2022_2023.tsv"):
         """Save aggregated results to TSV file."""
-        output_path = Path(output_file)
+        output_path = self.output_dir / output_file
         
         logger.info(f"Saving results to {output_path}")
         
@@ -238,23 +252,23 @@ class WikipediaPageviewAggregator:
                 writer = csv.writer(f, delimiter='\t')
                 
                 # Write header
-                writer.writerow(['page_title', 'total_pageviews'])
+                writer.writerow(['page_id', 'total_pageviews'])
                 
                 # Write data
-                for page_title, total_views in sorted_pages:
-                    writer.writerow([page_title, total_views])
+                for page_id, total_views in sorted_pages:
+                    writer.writerow([page_id, total_views])
             
             logger.info(f"Results saved: {len(sorted_pages)} pages written to {output_path}")
             
             # Print top 10 pages
             logger.info("Top 10 most viewed pages:")
-            for i, (title, views) in enumerate(sorted_pages[:10], 1):
-                logger.info(f"{i:2d}. {title}: {views:,} views")
+            for i, (page_id, views) in enumerate(sorted_pages[:10], 1):
+                logger.info(f"{i:2d}. Page ID {page_id}: {views:,} views")
                 
         except Exception as e:
             logger.error(f"Failed to save results: {e}")
     
-    def run_aggregation(self, start_date: str = "2022-11-01", end_date: str = "2023-11-01"):
+    def run_aggregation(self, start_date: str = "2022-11-01", end_date: str = "2023-10-01"):
         """Run the complete aggregation process."""
         logger.info(f"Starting Wikipedia pageview aggregation from {start_date} to {end_date}")
         
@@ -306,7 +320,8 @@ def main():
     
     try:
         # Run aggregation for the specified time period
-        aggregator.run_aggregation("2022-11-01", "2023-11-01")
+        aggregator.run_aggregation("2022-11-01", "2023-10-01")
+        # aggregator.run_aggregation("2022-11-01", "2022-11-01")
         logger.info("Wikipedia pageview aggregation completed successfully!")
         
     except KeyboardInterrupt:
