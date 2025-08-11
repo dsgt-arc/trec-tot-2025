@@ -49,7 +49,9 @@ def load_graph_data_remapped(edges: pl.DataFrame) -> tuple[rx.PyDiGraph, pl.Data
             [
                 pl.col("src_idx").alias("src"),
                 pl.col("dst_idx").alias("dst"),
-                pl.col("score").alias("weight"),
+                pl.col("score").alias("weight")
+                if "score" in edges.columns
+                else pl.col("weight"),
             ]
         )
     )
@@ -174,7 +176,7 @@ class Workflow(luigi.Task):
 
         tasks = []
 
-        for suffix in ["bge-m3-knn-k10", "bge-m3-knn-k15"]:
+        for suffix in ["bge-m3-knn-k10", "bge-m3-knn-k15", "merged-v2"]:
             graph_root = dataset_root / "graph/v2" / suffix
             output_root = dataset_root / "centrality/v2.2" / suffix
             output_root.mkdir(parents=True, exist_ok=True)

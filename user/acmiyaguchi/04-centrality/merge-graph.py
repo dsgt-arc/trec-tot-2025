@@ -92,9 +92,10 @@ class MergeGraphs(luigi.Task):
 
         # and now aggregate the edges using a sum
         g_prime = GraphFrame(
-            g_prime.vertices.select("id"),
+            g_prime.vertices.select("id").distinct(),
             g_prime.edges.groupBy("src", "dst").agg(F.sum("weight").alias("weight")),
-        )
+        ).dropIsolatedVertices()
+        # drop nodes with no edges, or edges without a node
         self.write_graph(g_prime)
 
 
@@ -103,7 +104,7 @@ class Workflow(luigi.Task):
         trec_root = Path("~/scratch/trec-tot-2025").expanduser()
         dataset_root = trec_root / "data/enwiki/processed"
         graph_root = dataset_root / "graph/v2"
-        output_path = dataset_root / "graph/v2/merged-v1"
+        output_path = dataset_root / "graph/v2/merged-v2"
 
         yield MergeGraphs(
             # NOTE: one of these has a `page_is_redirect` column, but we can ignore this for now
