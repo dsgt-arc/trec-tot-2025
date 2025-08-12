@@ -40,6 +40,10 @@ def get_index(ir_dataset, index_directory):
 def process_dataset(ir_dataset, index_directory, output_directory):
     if (output_directory / "run.txt.gz").exists():
         return
+    
+    if not output_directory.exists():
+        print("Output directory doesn't exist")
+        return
 
     index = get_index(ir_dataset, index_directory)
     bm25 = pt.terrier.Retriever(index, wmodel="BM25")

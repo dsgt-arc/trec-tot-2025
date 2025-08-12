@@ -1,9 +1,9 @@
 """
-Refined LLM Query Generation Module
-Extracted and refined from generate_gpt_queries.py for running generate_single function
+LLM Query Generation Module
+Reads from JSONL file with Wikipedia articles and generates forum posts using generic template
 
 Example:
-python 6_llm_query_gen.py --use-generic --start 10 --end 100 --paragraphs-file outputs/generated_query/openai_gpt-4o-mini/json_files/
+python self_llm_query_gen.py --start 10 --end 100 --paragraphs-file outputs/generated_query/openai_gpt-4o-mini/json_files/
 
 """
 import argparse
@@ -11,16 +11,12 @@ import csv
 import json
 import logging
 import os
-import requests
 from datetime import datetime
 from openai import OpenAI
-import pandas as pd
 
 from templates import (
     get_template, 
     get_system_message, 
-    get_content_type, 
-    list_available_topics
 )
 
 # Configuration
@@ -140,96 +136,53 @@ def save_warnings_to_file(output_file_path):
         for record in warning_records:
             writer.writerow(record)
 
-def map_category_to_topic(category):
+def read_entities_from_jsonl(jsonl_file_path):
     """
-    Maps TSV category to topic format used by templates.
+    Reads entities from the JSONL file.
     
     Args:
-        category (str): Category from TSV ("person", "place", "film")
-        
-    Returns:
-        str: Topic format ("celebrity", "landmark", "movie")
-    """
-    category_mapping = {
-        "person": "celebrity",
-        "place": "landmark", 
-        "film": "movie"
-    }
-    
-    mapped_topic = category_mapping.get(category.lower())
-    if not mapped_topic:
-        raise ValueError(f"Unknown category '{category}'. Valid categories: {list(category_mapping.keys())}")
-    
-    return mapped_topic
-
-
-def read_entities_from_tsv(tsv_file_path, use_generic=False):
-    """
-    Reads entities from the TSV file.
-    
-    Args:
-        tsv_file_path (str): Path to the TSV file
-        use_generic (bool): If True, use 'generic' topic for all entities instead of mapping from category
+        jsonl_file_path (str): Path to the JSONL file
         
     Returns:
         list: List of dictionaries containing entity information
     """
     try:
-        df = pd.read_csv(tsv_file_path, sep='\t')
         entities = []
         
-        for _, row in df.iterrows():
-            if use_generic:
-                topic = 'generic'
-            else:
-                topic = map_category_to_topic(row['category'])
-                
-            entity = {
-                'query_id': row['query_id'],
-                'entity_id': row['entity_id'],
-                'title': row['title'],
-                'category': row['category'],
-                'url': row['url'],
-                'topic': topic
-            }
-            entities.append(entity)
-            
+        with open(jsonl_file_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                if line.strip():
+                    data = json.loads(line.strip())
+                    
+                    entity = {
+                        'query_id': data.get('query_id'),
+                        'entity_id': data.get('wikipedia_id'),  # wikipedia_id maps to entity_id
+                        'title': data.get('title'),
+                        'text': data.get('text'),  # Add text field
+                        'topic': 'generic'  # Always use generic
+                    }
+                    entities.append(entity)
+        
         return entities
         
     except Exception as e:
-        raise Exception(f"Failed to read TSV file '{tsv_file_path}': {e}")
+        raise Exception(f"Failed to read JSONL file '{jsonl_file_path}': {e}")
 
 
-def fetch_document_from_wiki_full(target_object):
+def fetch_document_from_text(text_content):
     """
-    Fetches the full Wikipedia content for a given target object.
+    Returns the provided text content instead of fetching from Wikipedia.
     
     Args:
-        target_object (str): The name of the Wikipedia page to fetch
+        text_content (str): The text content from the JSONL file
         
     Returns:
-        str: The full text content of the Wikipedia page or error message
+        str: The text content or error message if content is empty
     """
-    url = f"https://en.wikipedia.org/w/api.php?action=query&prop=extracts&format=json&titles={target_object}&explaintext=true"
+    if not text_content or text_content.strip() == '':
+        return "No text content available for this article."
     
-    try:
-        response = requests.get(url, timeout=10)
-        response.raise_for_status()
-        
-        data = response.json()
-        pages = data.get("query", {}).get("pages", {})
-        
-        if not pages:
-            return "No pages found in the API response."
-        
-        page = next(iter(pages.values()), None)
-        if not page or "extract" not in page:
-            return "Failed to retrieve content from the page."
-        
-        return page["extract"].strip()
-        
-    except requests.RequestException as e:
-        return f"Failed to retrieve content from Wikipedia: {e}"
+    return text_content.strip()
 
 
 def split_document(document, max_paragraphs=None):
@@ -354,13 +307,12 @@ def extract_code_block_content(response, target_object=None, entity_id=None, que
         return response
 
 
-def summarize_text(text, content_type="movie"):
+def summarize_text(text):
     """
     Summarizes the given text into two paragraphs using the LLM.
     
     Args:
         text (str): The text to summarize
-        content_type (str): Type of content - "movie", "person", or "place"
         
     Returns:
         str: The summarized text
@@ -375,20 +327,11 @@ def summarize_text(text, content_type="movie"):
         input_text = input_text[:MAX_INPUT_LENGTH]
         log_warning_to_file(
             "input_length_exceeded",
-            f"Input text length exceeded {MAX_INPUT_LENGTH} characters, truncating to fit",
-            content_type=content_type
+            f"Input text length exceeded {MAX_INPUT_LENGTH} characters, truncating to fit"
         )
     
-    # Create appropriate prompt based on content type
-    if content_type == "person":
-        prompt = f"Please summarize the following description about a person into two paragraphs:\n\n{input_text}."
-    elif content_type == "place":
-        prompt = f"Please summarize the following description about a place into two paragraphs:\n\n{input_text}."
-    elif content_type == "movie":
-        prompt = f"Please summarize the following description about a movie into two paragraphs:\n\n{input_text}. Please focus on the plots, and ignore the director and actor names."
-    else:
-        # generic 
-        prompt = f"Please summarize the following description into two paragraphs:\n\n{input_text}."
+    # Create generic prompt
+    prompt = f"Please summarize the following description into two paragraphs:\n\n{input_text}."
     messages = [
         {"role": "system", "content": "You are a text summarization assistant."},
         {"role": "user", "content": prompt},
@@ -449,44 +392,38 @@ def generate_post_without_name(topic, target_object, paragraphs):
         raise Exception(f"Failed to generate post: {e}")
 
 
-def generate_single(target_object, topic, output_file_path, wikipedia_url, results_dir_prefix, entity_id=None, query_id=None, paragraphs_file=None):
+def generate_single(target_object, output_file_path, entity_id=None, query_id=None, paragraphs_file=None, text_content=None):
     """
-    Generates a single forum post for a given target object.
+    Generates a single forum post for a given target object using generic template.
     
     Args:
         target_object (str): The name of the object to generate a post about
-        topic (str): The type of topic ("movie", "celebrity", "landmark")
-        output_file_path (str): Path to save the output TSV file
-        wikipedia_url (str, optional): Wikipedia URL for the object
-        results_dir_prefix (str): Directory prefix for saving results
-        entity_id (str, optional): Entity ID from the TSV file
-        query_id (str, optional): Query ID from the TSV file
-        paragraphs_file (str, optional): Directory containing JSON files with paragraphs to use instead of Wikipedia
+        output_file_path (str): Path to save the output JSONL file
+        entity_id (str, optional): Entity ID (wikipedia_id)
+        query_id (str, optional): Query ID from the JSONL file
+        paragraphs_file (str, optional): Directory containing JSON files with paragraphs to use instead of text_content
+        text_content (str, optional): Text content from JSONL file to use instead of fetching from Wikipedia
     Returns:
         dict: Results including the generated post and metadata
     """
-    # Validate topic
-    available_topics = list_available_topics()
-    if topic not in available_topics:
-        raise ValueError(f"Invalid topic '{topic}'. Available topics: {available_topics}")
+    topic = 'generic'  # Always use generic topic
 
     try:
-        # Get paragraphs either from file or Wikipedia
+        # Get paragraphs either from file or text content
         if paragraphs_file:
             print(f"Reading paragraphs from directory: {paragraphs_file}")
             paragraphs = read_paragraphs_from_file(paragraphs_file, target_object)
             print(f"Read {len(paragraphs)} paragraphs from JSON file")
         else:
-            # Fetch and process document from Wikipedia
-            print(f"Fetching Wikipedia content for: {target_object}")
-            doc = fetch_document_from_wiki_full(target_object)
+            # Use provided text content instead of fetching from Wikipedia
+            print(f"Using provided text content for: {target_object}")
+            doc = fetch_document_from_text(text_content)
             
-            if doc.startswith("Failed") or doc.startswith("No pages"):
-                raise Exception(f"Could not fetch Wikipedia content: {doc}")
+            if doc.startswith("No text content"):
+                raise Exception(f"Could not get text content: {doc}")
             
             print("Summarizing content...")
-            content_type = get_content_type(topic)
-            summarization = summarize_text(doc, content_type)
+            summarization = summarize_text(doc)
             paragraphs = split_document(summarization)
         
         if not paragraphs:
@@ -510,11 +447,12 @@ def generate_single(target_object, topic, output_file_path, wikipedia_url, resul
             "target_object": target_object,
             "paragraphs": paragraphs,
             "template_used": template,
-            "response": response,
-            "wikipedia_url": wikipedia_url
+            "response": response
         }
         
         # Save to JSON file
+        results_dir_prefix = os.path.dirname(output_file_path) + "/json_files/"
+        os.makedirs(results_dir_prefix, exist_ok=True)
         json_filename = generate_json_filename(target_object)
         with open(f'{results_dir_prefix}{json_filename}', "w", encoding="utf-8") as f:
             json.dump(result, f, indent=4, ensure_ascii=False)
@@ -532,33 +470,21 @@ def generate_single(target_object, topic, output_file_path, wikipedia_url, resul
                 target_object, entity_id, query_id
             )
 
-        # Process response for TSV output
+        # Process response for JSONL output
         processed_response = post_content.replace("\n", " ").strip('"')
         
         # Create output directory if it doesn't exist
         os.makedirs(os.path.dirname(output_file_path), exist_ok=True)
         
-        # Write to TSV file
-        file_exists = os.path.isfile(output_file_path)
+        # Write to JSONL file
+        with open(output_file_path, "a", encoding="utf-8") as outfile:
+            query_record = {
+                "query_id": str(query_id or ""),
+                "query": processed_response
+            }
+            outfile.write(json.dumps(query_record, ensure_ascii=False) + '\n')
         
-        with open(output_file_path, "a", encoding="utf-8", newline="") as outfile:
-            fieldnames = ["QuestionBody", "wikipediaURL", "totObj", "entityId", "queryId"]
-            writer = csv.DictWriter(outfile, fieldnames=fieldnames, delimiter="\t")
-            
-            # Write header if file is new
-            if not file_exists:
-                writer.writeheader()
-            
-            writer.writerow({
-                "QuestionBody": processed_response,
-                "wikipediaURL": wikipedia_url,
-                "totObj": target_object,
-                "entityId": entity_id or "",
-                "queryId": query_id or "",
-            })
-        
-        print(f"Appended result to TSV file: {output_file_path}")
-        # print(f"\nGenerated post:\n{response}")
+        print(f"Appended result to JSONL file: {output_file_path}")
         
         return result
         
@@ -570,55 +496,42 @@ def generate_single(target_object, topic, output_file_path, wikipedia_url, resul
 
 def main():
     """
-    Main function to process entities from TSV file and generate forum posts.
+    Main function to process entities from JSONL file and generate queries.
     """
     # Parse command line arguments
-    parser = argparse.ArgumentParser(description="Generate LLM queries from entity classification TSV")
+    parser = argparse.ArgumentParser(description="Generate LLM queries from JSONL using generic template")
     parser.add_argument("--start", type=int, default=0, help="Start index for processing entities (default: 0)")
     parser.add_argument("--end", type=int, default=None, help="End index for processing entities (default: all entities)")
-    parser.add_argument("--use-generic", action="store_true", help="Use 'generic' topic for all entities instead of mapping from category")
-    parser.add_argument("--paragraphs-file", type=str, help="Directory containing JSON files with pre-written paragraphs to use instead of fetching from Wikipedia")
+    parser.add_argument("--paragraphs-file", type=str, help="Directory containing JSON files with pre-written paragraphs to use instead of using text content")
     args = parser.parse_args()
     
-    # Show available topics
-    print("Available topics:", list_available_topics())
-    
     # Configuration
-    tsv_file_path = "outputs/classification/dev3_first_100_entity_classification.tsv"
-    
-    # Adjust output paths based on whether generic mode is used
+    set_num = 'set-1'
+    jsonl_file_path = f"outputs/llm-queries-{set_num}.jsonl"
+
+    # Output paths - simplified since we always use generic
     current_date = datetime.now().strftime("%y%m%d")
-    model_path = MODEL.replace('/', '_') + f"_{current_date}"
-    if args.use_generic:
-        output_file = f"outputs/generated_query/{model_path}_generic/queries.tsv"
-        json_dir = f"outputs/generated_query/{model_path}_generic/json_files/"
-        warnings_file = f"outputs/generated_query/{model_path}_generic/warnings.tsv"
-        failed_file = f"outputs/generated_query/{model_path}_generic/failed_entries.tsv"
-    else:
-        output_file = f"outputs/generated_query/{model_path}/queries.tsv"
-        json_dir = f"outputs/generated_query/{model_path}/json_files/"
-        warnings_file = f"outputs/generated_query/{model_path}/warnings.tsv"
-        failed_file = f"outputs/generated_query/{model_path}/failed_entries.tsv"
+    model_path = set_num + '-' + MODEL.replace('/', '_') + f"_{current_date}"
+    output_file = f"outputs/generated_query/{model_path}_generic/queries.jsonl"
+    json_dir = f"outputs/generated_query/{model_path}_generic/json_files/"
+    warnings_file = f"outputs/generated_query/{model_path}_generic/warnings.tsv"
+    failed_file = f"outputs/generated_query/{model_path}_generic/failed_entries.tsv"
     
     # Ensure output directories exist
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
     os.makedirs(json_dir, exist_ok=True)
     
     try:
-        # Read entities from TSV file
-        print(f"Reading entities from: {tsv_file_path}")
-        entities = read_entities_from_tsv(tsv_file_path, use_generic=args.use_generic)
+        # Read entities from JSONL file
+        print(f"Reading entities from: {jsonl_file_path}")
+        entities = read_entities_from_jsonl(jsonl_file_path)
         print(f"Found {len(entities)} entities to process")
-        
-        if args.use_generic:
-            print("Using 'generic' topic for all entities (ignoring category from CSV)")
-        else:
-            print("Using category-based topic mapping")
+        print("Using generic template for all entities")
             
         if args.paragraphs_file:
             print(f"Using paragraphs from JSON files in directory: {args.paragraphs_file}")
         else:
-            print("Fetching content from Wikipedia and summarizing")
+            print("Using text content from JSONL file and summarizing")
         
         # Apply start and end indices
         start_idx = args.start
@@ -642,18 +555,16 @@ def main():
         
         for i, entity in enumerate(entities_to_process, 1):
             actual_index = start_idx + i - 1
-            print(f"\n[{i}/{len(entities_to_process)}] (Index {actual_index}) Processing: {entity['title']} (Category: {entity['category']}, Topic: {entity['topic']})")
+            print(f"\n[{i}/{len(entities_to_process)}] (Index {actual_index}) Processing: {entity['title']}")
             
             try:
                 result = generate_single(
                     target_object=entity['title'],
-                    topic=entity['topic'],
                     output_file_path=output_file,
-                    wikipedia_url=entity['url'],
-                    results_dir_prefix=json_dir,
                     entity_id=entity['entity_id'],
                     query_id=entity['query_id'],
-                    paragraphs_file=args.paragraphs_file
+                    paragraphs_file=args.paragraphs_file,
+                    text_content=entity['text']
                 )
                 successful_count += 1
                 
