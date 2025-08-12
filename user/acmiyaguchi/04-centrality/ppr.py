@@ -150,7 +150,7 @@ class Workflow(luigi.Task):
 
         tasks = []
 
-        for suffix in ["bge-m3-knn-k15"]:
+        for suffix in ["bge-m3-knn-k15", "merged-v2"]:
             graph_root = dataset_root / "graph/v2" / suffix
             output_root = dataset_root / "reranked/v2.1" / suffix
             output_root.mkdir(parents=True, exist_ok=True)
