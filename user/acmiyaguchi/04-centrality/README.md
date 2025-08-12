@@ -69,3 +69,12 @@ Results are stored in `~/scratch/trec-tot-2025/data/enwiki/processed/centrality/
 - `01-results.ipynb`: Analysis of computed centrality measures
 - `02-rerank.ipynb`: Reranking experiments with centrality scores
 - `03-rerank-ppr.ipynb`: Personalized PageRank reranking experiments
+
+## Notes
+
+Copying the final merged-v2 pagerank values:
+
+```
+rclone copy $HOME/scratch/trec-tot-2025/data/enwiki/processed/centrality/v2.2/merged-v2 \
+    gdrive-trec-tot-2025:data/centrality/merged-v2
+```

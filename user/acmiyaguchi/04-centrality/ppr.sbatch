@@ -6,4 +6,4 @@
 
 set -x
 cd ${SLURM_SUBMIT_DIR:-$(dirname "$0")}
-uv run ppr.py
+uv run ppr.py --workers 4

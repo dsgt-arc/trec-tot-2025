@@ -171,8 +171,8 @@ class Workflow(luigi.Task):
 
 
 @app.command()
-def run():
-    luigi.build([Workflow()], local_scheduler=True, workers=6, log_level="INFO")
+def run(workers=4):
+    luigi.build([Workflow()], local_scheduler=True, workers=workers, log_level="INFO")
 
 
 if __name__ == "__main__":
