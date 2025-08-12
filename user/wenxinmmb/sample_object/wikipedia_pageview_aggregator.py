@@ -32,7 +32,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('wikipedia_pageview_aggregator.log'),
+        logging.FileHandler('outputs/wikipedia_pageview_aggregator.log'),
         logging.StreamHandler(sys.stdout)
     ]
 )

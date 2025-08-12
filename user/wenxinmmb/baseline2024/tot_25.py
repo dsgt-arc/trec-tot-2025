@@ -104,7 +104,8 @@ def register(path):
     # corpus
     corpus = path / "corpus.jsonl"
 
-    for split in {"train-2025", "dev1-2025", "dev2-2025", "dev3-2025", "test-2025", "dev3-g1-2025", "dev3-o4-2025", "dev3-gpt4o-2025"}:
+    for split in {"train-2025", "dev1-2025", "dev2-2025", "dev3-2025", "test-2025", "dev3-g1-2025", "dev3-o4-2025", "dev3-gpt4o-2025",
+                  "generated-queries/llm-set1/train", "generated-queries/llm-set1/dev", "generated-queries/llm-set1/test"}:
         name = split
 
         # queries
