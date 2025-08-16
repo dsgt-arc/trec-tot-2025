@@ -195,29 +195,6 @@ def main():
     with open(model_file, 'w') as f:
         json.dump(model_dict, f, indent=2)
     print(f"Model saved to: {model_file}")
-    
-    # Test prediction and evaluation on development set
-    print("Testing prediction on development set...")
-    predictions = dev_dataset.predict_scores(model)
-    print(f"Prediction successful! Got {len(predictions)} predictions")
-    
-    # Calculate some basic metrics
-    if isinstance(predictions, list) and len(predictions) > 10:
-        print(f"Sample predictions: {predictions[:10]}")
-    else:
-        print(f"First few predictions: {list(predictions)[:10] if hasattr(predictions, '__iter__') else predictions}")
-    
-    # Skip the dataset evaluate method since it requires an evaluator parameter
-    # Use the separate evaluation script instead
-    print("\nFor proper evaluation with NDCG and Recall metrics, run:")
-    print("python evaluate_model.py")
-    
-    # Manual evaluation - calculate simple metrics
-    print("Basic prediction statistics:")
-    print(f"  Min prediction: {min(predictions) if predictions else 'N/A'}")
-    print(f"  Max prediction: {max(predictions) if predictions else 'N/A'}")
-    print(f"  Mean prediction: {sum(predictions)/len(predictions) if predictions else 'N/A'}")
-
 
 if __name__ == "__main__":
     main()
