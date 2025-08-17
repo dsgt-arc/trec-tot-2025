@@ -36,33 +36,86 @@ def calculate_reciprocal_rank(rank):
     """Calculate reciprocal rank: 1 / (rank + 1)."""
     return 1.0 / (rank + 1)
 
-def extract_features(doc_id, query_id, sparse_results, dense_results):
-    """Extract features for a document given query and retrieval results."""
+def extract_features_v2(doc_id, query_id, sparse_results, dense_results):
+    """Extract normalized features (v2) for a document given query and retrieval results."""
     features = []
     
     # Get sparse and dense info (default to low values if not found)
     sparse_rank, sparse_score = sparse_results[query_id].get(doc_id, (999, 0.0))
     dense_rank, dense_score = dense_results[query_id].get(doc_id, (999, 0.0))
     
-    # Feature 1: sparse retrieval score
+    # Get all scores for this query for normalization (include default scores)
+    all_sparse_scores = [score for rank, score in sparse_results[query_id].values()]
+    all_dense_scores = [score for rank, score in dense_results[query_id].values()]
+    
+    # Include default scores in normalization to handle missing documents
+    all_sparse_scores.append(0.0)  # Default sparse score
+    all_dense_scores.append(0.0)   # Default dense score
+    
+    # Calculate normalization parameters
+    sparse_max = max(all_sparse_scores) if all_sparse_scores else 1.0
+    sparse_min = min(all_sparse_scores) if all_sparse_scores else 0.0
+    dense_max = max(all_dense_scores) if all_dense_scores else 1.0
+    dense_min = min(all_dense_scores) if all_dense_scores else 0.0
+    
+    # Feature 1: Normalized sparse retrieval score (MinMax normalization)
+    sparse_normalized = (sparse_score - sparse_min) / (sparse_max - sparse_min + 1e-8)
+    features.append(sparse_normalized)
+    
+    # Feature 2: Normalized dense retrieval score (MinMax normalization)
+    dense_normalized = (dense_score - dense_min) / (dense_max - dense_min + 1e-8)
+    features.append(dense_normalized)
+    
+    # Feature 3: Log-normalized sparse score
+    features.append(math.log1p(sparse_score) / math.log1p(sparse_max + 1) if sparse_max > 0 else 0.0)
+    
+    # Feature 4: Log-normalized dense score
+    features.append(math.log1p(dense_score) / math.log1p(dense_max + 1) if dense_max > 0 else 0.0)
+    
+    # Feature 5: Normalized reciprocal rank for sparse results (0-1 scale)
+    rr_sparse = calculate_reciprocal_rank(sparse_rank)
+    features.append(rr_sparse)  # Already naturally normalized (0-1)
+    
+    # Feature 6: Normalized reciprocal rank for dense results (0-1 scale)
+    rr_dense = calculate_reciprocal_rank(dense_rank)
+    features.append(rr_dense)  # Already naturally normalized (0-1)
+    
+    # Feature 7: Normalized best rank (inverted and scaled to 0-1)
+    best_rank = min(sparse_rank, dense_rank)
+    # Convert rank to normalized score: better ranks (lower numbers) get higher scores
+    max_rank = 1000  # Assume max possible rank
+    rank_score = (max_rank - best_rank) / max_rank
+    features.append(max(0.0, rank_score))  # Ensure non-negative
+    
+    return features
+
+def extract_features_v1(doc_id, query_id, sparse_results, dense_results):
+    """Extract ORIGINAL (v1) un-normalized features for comparison purposes."""
+    features = []
+    
+    # Get sparse and dense info (default to low values if not found)
+    sparse_rank, sparse_score = sparse_results[query_id].get(doc_id, (999, 0.0))
+    dense_rank, dense_score = dense_results[query_id].get(doc_id, (999, 0.0))
+    
+    # Feature 1: sparse retrieval score (ORIGINAL v1)
     features.append(sparse_score)
     
-    # Feature 2: dense retrieval score
+    # Feature 2: dense retrieval score (ORIGINAL v1)
     features.append(dense_score)
     
-    # Feature 3: math.log1p(bm25_score)
+    # Feature 3: math.log1p(bm25_score) (ORIGINAL v1)
     features.append(math.log1p(sparse_score))
     
-    # Feature 4: math.log1p(dense_score + 1)
+    # Feature 4: math.log1p(dense_score + 1) (ORIGINAL v1)
     features.append(math.log1p(dense_score + 1))
     
-    # Feature 5: reciprocal rank for sparse results
+    # Feature 5: reciprocal rank for sparse results (ORIGINAL v1)
     features.append(calculate_reciprocal_rank(sparse_rank))
     
-    # Feature 6: reciprocal rank for dense results
+    # Feature 6: reciprocal rank for dense results (ORIGINAL v1)
     features.append(calculate_reciprocal_rank(dense_rank))
     
-    # Feature 7: best rank min(sparse_rank, dense_rank)
+    # Feature 7: best rank min(sparse_rank, dense_rank) (ORIGINAL v1)
     features.append(min(sparse_rank, dense_rank))
     
     # Features 8-9: page view and page rank (to be added later)
@@ -132,18 +185,18 @@ def sample_training_data(qrels, sparse_results, dense_results, output_file):
                 all_sampled_negatives.extend(random.sample(remaining_negatives, additional_negatives))
             
             # Create positive sample
-            pos_features = extract_features(pos_doc, query_id, sparse_results, dense_results)
+            pos_features = extract_features_v2(pos_doc, query_id, sparse_results, dense_results)
             training_samples.append((query_id, pos_doc, 1, pos_features))  # label = 1 for relevant
             
             # Create negative samples
             for neg_doc in all_sampled_negatives[:100]:  # Ensure we don't exceed 100
-                neg_features = extract_features(neg_doc, query_id, sparse_results, dense_results)
+                neg_features = extract_features_v2(neg_doc, query_id, sparse_results, dense_results)
                 training_samples.append((query_id, neg_doc, 0, neg_features))  # label = 0 for non-relevant
-    
-    # Write training samples to file in RankLib format
-    with open(output_file, 'w') as f:
+
+    # Write NORMALIZED training samples
+    normalized_file = output_file
+    with open(normalized_file, 'w') as f:
         for query_id, doc_id, label, features in training_samples:
-            # RankLib format: label qid:query_id 1:feat1 2:feat2 ... # doc_id
             feature_str = " ".join(f"{i+1}:{feat:.6f}" for i, feat in enumerate(features))
             f.write(f"{label} qid:{query_id} {feature_str} # {doc_id}\n")
     
@@ -151,39 +204,47 @@ def sample_training_data(qrels, sparse_results, dense_results, output_file):
     feature_annotations = {
         "features": {
             "1": {
-                "name": "sparse_score",
-                "description": "BM25 sparse retrieval score"
+                "name": "sparse_score_normalized",
+                "description": "BM25 sparse retrieval score (MinMax normalized per query, 0-1 scale)",
+                "range": "[0.0, 1.0]"
             },
             "2": {
-                "name": "dense_score", 
-                "description": "Dense retrieval score from BGE-M3"
+                "name": "dense_score_normalized", 
+                "description": "Dense retrieval score from BGE-M3 (MinMax normalized per query, 0-1 scale)",
+                "range": "[0.0, 1.0]"
             },
             "3": {
-                "name": "log_sparse_score",
-                "description": "log1p(BM25 score)"
+                "name": "log_sparse_score_normalized",
+                "description": "Log1p normalized BM25 score (log1p(score) / log1p(max_score))",
+                "range": "[0.0, 1.0]"
             },
             "4": {
-                "name": "log_dense_score",
-                "description": "log1p(dense score + 1)"
+                "name": "log_dense_score_normalized",
+                "description": "Log1p normalized dense score (log1p(score) / log1p(max_score))",
+                "range": "[0.0, 1.0]"
             },
             "5": {
                 "name": "rr_sparse",
-                "description": "Reciprocal rank for sparse retrieval (1/(rank+1))"
+                "description": "Reciprocal rank for sparse retrieval (1/(rank+1))",
+                "range": "(0.0, 1.0]"
             },
             "6": {
                 "name": "rr_dense",
-                "description": "Reciprocal rank for dense retrieval (1/(rank+1))"
+                "description": "Reciprocal rank for dense retrieval (1/(rank+1))",
+                "range": "(0.0, 1.0]"
             },
             "7": {
-                "name": "best_rank",
-                "description": "Best rank between sparse and dense retrieval min(sparse_rank, dense_rank)"
+                "name": "best_rank_score",
+                "description": "Normalized best rank score: (1000 - min(sparse_rank, dense_rank)) / 1000",
+                "range": "[0.0, 1.0]"
             }
         },
         "format": "RankLib",
-        "description": "Features for coordinate ascent reranker training"
+        "description": "Normalized features for coordinate ascent reranker training",
+        "normalization": "All features scaled to [0,1] range for better learning stability"
     }
     
-    feature_file = output_file.replace('.txt', '_features.json')
+    feature_file = output_file.replace('.txt', '_features_description.json')
     with open(feature_file, 'w') as f:
         json.dump(feature_annotations, f, indent=2)
     
@@ -194,7 +255,7 @@ if __name__ == "__main__":
     qrel_file = "/home/wenxin/project/data/2025/generated-queries/llm-set1/dev/qrel.txt"
     sparse_file = "inputs/llm-set1-bm25-run.txt"
     dense_file = "inputs/llm-set1-bge-dense-run.txt"
-    output_file = "outputs/training_dev_samples.txt"
+    output_file = "outputs/models/feature_v2/training_dev_samples.txt"
     
     # Set random seed for reproducibility
     random.seed(42)
@@ -224,4 +285,4 @@ if __name__ == "__main__":
     print(f"Negative samples: {negative_samples}")
     print(f"Positive:Negative ratio: 1:{negative_samples//positive_samples}")
     print(f"Training data saved to: {output_file}")
-    print(f"Feature annotations saved to: {output_file.replace('.txt', '_features.json')}")
+    print(f"Feature annotations saved to: {output_file.replace('.txt', '_features_description.json')}")
