@@ -5,7 +5,7 @@ import json
 from collections import defaultdict
 import numpy as np
 from fastrank import CModel, CDataset, TrainRequest
-from select_train_samples import extract_features_v2, load_retrieval_results
+from select_train_samples import extract_features_v2, extract_features_v1, extract_features_v3, load_retrieval_results
 
 def load_training_data(data_file):
     """Load training data in RankLib format."""
@@ -138,9 +138,29 @@ def train_coordinate_ascent(training_file):
     
     print(f"Training dataset: {train_dataset.num_instances()} instances, {train_dataset.num_features()} features")
     
-    # Create training request for coordinate ascent
-    train_request = TrainRequest()
-    train_request = train_request.coordinate_ascent()
+    # Create training request for coordinate ascent with improved hyperparameters
+    train_request = TrainRequest.coordinate_ascent()
+    params = train_request.params
+    
+    # Key hyperparameters to address underfitting
+    params.num_max_iterations = 100  # Increased from default 25 - allows more training time
+    params.tolerance = 0.0001       # Decreased from default 0.001 - tighter convergence
+    params.step_base = 0.1          # Increased from default 0.05 - larger learning steps
+    params.num_restarts = 10        # Increased from default 5 - more chances to find global optimum
+    params.output_ensemble = True  # Single model (could try True later)
+    
+    # Other good settings
+    params.init_random = True       # Random initialization
+    params.normalize = True         # Feature normalization
+    params.step_scale = 2.0         # Default scaling factor
+    params.seed = 1234567          # Fixed seed for reproducibility
+    params.quiet = False           # Show training progress
+    
+    print("Training hyperparameters:")
+    print(f"  Max iterations: {params.num_max_iterations}")
+    print(f"  Tolerance: {params.tolerance}")
+    print(f"  Step base: {params.step_base}")
+    print(f"  Num restarts: {params.num_restarts}")
     
     # Train the model
     print("Starting model training...")
@@ -220,35 +240,43 @@ def analyze_training_data(training_file):
     
     return queries, feature_values
 
-def evaluate_baseline(retrieval_results, qrels, k=10):
-    """Evaluate baseline retrieval performance (no reranking)."""
+def evaluate_baseline(retrieval_results, qrels, k_values=[10, 100, 1000]):
+    """Evaluate baseline retrieval performance (no reranking) at multiple k values."""
     print("=== BASELINE EVALUATION ===")
     
-    ndcg_scores = []
-    recall_scores = []
-    
-    for query_id in retrieval_results:
-        if query_id not in qrels:
-            continue
+    results = {}
+    for k in k_values:
+        ndcg_scores = []
+        recall_scores = []
+        
+        for query_id in retrieval_results:
+            if query_id not in qrels:
+                continue
+                
+            # Use original ranking (no reranking)
+            ranked_docs = [{'doc_id': doc_id} for doc_id in retrieval_results[query_id]]
             
-        # Use original ranking (no reranking)
-        ranked_docs = [{'doc_id': doc_id} for doc_id in retrieval_results[query_id]]
+            # Calculate baseline metrics
+            ndcg = calculate_ndcg(ranked_docs, qrels, query_id, k)
+            recall = calculate_recall(ranked_docs, qrels, query_id, k)
+            
+            ndcg_scores.append(ndcg)
+            recall_scores.append(recall)
         
-        # Calculate baseline metrics
-        ndcg = calculate_ndcg(ranked_docs, qrels, query_id, k)
-        recall = calculate_recall(ranked_docs, qrels, query_id, k)
+        avg_ndcg = np.mean(ndcg_scores) if ndcg_scores else 0.0
+        avg_recall = np.mean(recall_scores) if recall_scores else 0.0
         
-        ndcg_scores.append(ndcg)
-        recall_scores.append(recall)
+        results[k] = {
+            'ndcg': avg_ndcg,
+            'recall': avg_recall,
+            'num_queries': len(ndcg_scores)
+        }
+        
+        print(f"Baseline NDCG@{k}: {avg_ndcg:.4f}")
+        print(f"Baseline Recall@{k}: {avg_recall:.4f}")
     
-    avg_ndcg = np.mean(ndcg_scores) if ndcg_scores else 0.0
-    avg_recall = np.mean(recall_scores) if recall_scores else 0.0
-    
-    print(f"Baseline NDCG@{k}: {avg_ndcg:.4f}")
-    print(f"Baseline Recall@{k}: {avg_recall:.4f}")
-    print(f"Evaluated {len(ndcg_scores)} queries")
-    
-    return avg_ndcg, avg_recall
+    print(f"Evaluated {results[k_values[0]]['num_queries']} queries")
+    return results
 
 def load_model_from_json(model_path):
     """Load a trained model from JSON file."""
@@ -266,14 +294,30 @@ def load_model_from_json(model_path):
     
     return ranker
 
-def evaluate_reranking(ranker, retrieval_results, qrels, sparse_results, dense_results, k=10):
-    """Evaluate reranking performance using NDCG@k and Recall@k."""
+def evaluate_reranking(ranker, retrieval_results, qrels, sparse_results, dense_results, k_values=[10, 100, 1000], feature_version='v2'):
+    """Evaluate reranking performance using NDCG@k and Recall@k at multiple k values."""
     
-    ndcg_scores = []
-    recall_scores = []
+    # Select feature extraction function
+    # Select appropriate feature extraction function
+    if feature_version == 'v1':
+        extract_features = extract_features_v1
+    elif feature_version == 'v2':
+        extract_features = extract_features_v2
+    elif feature_version == 'v3':
+        extract_features = extract_features_v3
+    else:
+        raise ValueError(f"Invalid feature_version: {feature_version}. Must be 'v1', 'v2', or 'v3'.")
     
-    print(f"Starting evaluation on {len(retrieval_results)} queries...")
+    print(f"Starting evaluation on {len(retrieval_results)} queries using feature version {feature_version}...")
     processed_queries = 0
+    
+    # Initialize results storage
+    results = {}
+    for k in k_values:
+        results[k] = {
+            'ndcg_scores': [],
+            'recall_scores': []
+        }
     
     for query_id in retrieval_results:
         if query_id not in qrels:
@@ -282,7 +326,7 @@ def evaluate_reranking(ranker, retrieval_results, qrels, sparse_results, dense_r
         # Extract features for all documents in retrieval results
         docs_with_features = []
         for doc_id in retrieval_results[query_id]:
-            features = extract_features_v2(doc_id, query_id, sparse_results, dense_results)
+            features = extract_features(doc_id, query_id, sparse_results, dense_results)
             docs_with_features.append({
                 'doc_id': doc_id,
                 'features': features,
@@ -296,6 +340,7 @@ def evaluate_reranking(ranker, retrieval_results, qrels, sparse_results, dense_r
         for i, doc in enumerate(docs_with_features):
             features_str = " ".join([f"{j+1}:{feat}" for j, feat in enumerate(doc['features'])])
             temp_samples.append(f"0 qid:{query_id} {features_str} # {doc['doc_id']}")
+        
         # Write to temporary file and predict
         temp_file = f"temp_eval_{query_id}.txt"
         with open(temp_file, 'w') as f:
@@ -312,12 +357,13 @@ def evaluate_reranking(ranker, retrieval_results, qrels, sparse_results, dense_r
         
         reranked_docs = sorted(docs_with_features, key=lambda x: x['rerank_score'], reverse=True)
 
-        # Calculate NDCG@k and Recall@k
-        ndcg = calculate_ndcg(reranked_docs, qrels, query_id, k)
-        recall = calculate_recall(reranked_docs, qrels, query_id, k)
-        
-        ndcg_scores.append(ndcg)
-        recall_scores.append(recall)
+        # Calculate NDCG@k and Recall@k for all k values
+        for k in k_values:
+            ndcg = calculate_ndcg(reranked_docs, qrels, query_id, k)
+            recall = calculate_recall(reranked_docs, qrels, query_id, k)
+            
+            results[k]['ndcg_scores'].append(ndcg)
+            results[k]['recall_scores'].append(recall)
 
         processed_queries += 1
         if processed_queries % 50 == 0:
@@ -327,32 +373,96 @@ def evaluate_reranking(ranker, retrieval_results, qrels, sparse_results, dense_r
         if os.path.exists(temp_file):
             os.remove(temp_file)
     
-    avg_ndcg = np.mean(ndcg_scores)
-    avg_recall = np.mean(recall_scores)
+    # Calculate averages for each k
+    final_results = {}
+    for k in k_values:
+        ndcg_scores = results[k]['ndcg_scores']
+        recall_scores = results[k]['recall_scores']
+        
+        final_results[k] = {
+            'ndcg': np.mean(ndcg_scores),
+            'recall': np.mean(recall_scores),
+            'num_queries': len(ndcg_scores),
+            'ndcg_std': np.std(ndcg_scores),
+            'recall_std': np.std(recall_scores)
+        }
 
     print(f"Evaluation complete. Processed {processed_queries} queries with relevant documents.")
-    if ndcg_scores:
-        print(f"Score distribution - NDCG: min={np.min(ndcg_scores):.4f}, max={np.max(ndcg_scores):.4f}, std={np.std(ndcg_scores):.4f}")
-        print(f"Score distribution - Recall: min={np.min(recall_scores):.4f}, max={np.max(recall_scores):.4f}, std={np.std(recall_scores):.4f}")
+    
+    return final_results
 
-    return avg_ndcg, avg_recall
+def save_evaluation_results(baseline_results, reranked_results, model_version, feature_version, output_dir, split_name):
+    """Save evaluation results to JSON file."""
+    import datetime
+    
+    # Create evaluation results dictionary
+    evaluation_data = {
+        "metadata": {
+            "model_version": model_version,
+            "feature_version": feature_version,
+            "evaluation_date": datetime.datetime.now().isoformat(),
+            "k_values": [10, 100, 1000]
+        },
+        "baseline": baseline_results,
+        "reranked": reranked_results,
+        "improvements": {}
+    }
+    
+    # Calculate improvements
+    for k in [10, 100, 1000]:
+        if k in baseline_results and k in reranked_results:
+            baseline_ndcg = baseline_results[k]['ndcg']
+            baseline_recall = baseline_results[k]['recall']
+            reranked_ndcg = reranked_results[k]['ndcg']
+            reranked_recall = reranked_results[k]['recall']
+            
+            ndcg_improvement = ((reranked_ndcg - baseline_ndcg) / baseline_ndcg * 100) if baseline_ndcg > 0 else 0
+            recall_improvement = ((reranked_recall - baseline_recall) / baseline_recall * 100) if baseline_recall > 0 else 0
+            
+            evaluation_data["improvements"][k] = {
+                "ndcg_improvement_percent": ndcg_improvement,
+                "recall_improvement_percent": recall_improvement,
+                "ndcg_absolute_improvement": reranked_ndcg - baseline_ndcg,
+                "recall_absolute_improvement": reranked_recall - baseline_recall
+            }
+    
+    # Save as JSON
+    json_file = os.path.join(output_dir, f"evaluation_results_{split_name}.json")
+    with open(json_file, 'w') as f:
+        json.dump(evaluation_data, f, indent=2)
+    
+    print(f"Evaluation results saved to: {json_file}")
+    
+    return json_file
 
 def main():
     parser = argparse.ArgumentParser(description='Train coordinate ascent reranker')
     
+    # Model version argument
+    parser.add_argument('--model_version', type=str, required=True,
+                       help='Model version identifier (e.g., v2, v3, v4)')
+    
+    # Split argument
+    parser.add_argument('--split', type=str, required=True,
+                       help='Dataset split to use for evaluation (e.g., dev, train-100, train-500)')
+    
     # Data paths
-    parser.add_argument('--training_data', default='outputs/training_dev_samples.txt',
-                       help='Path to training data in RankLib format')
-    parser.add_argument('--qrel_file', default='/home/wenxin/project/data/2025/generated-queries/llm-set1/dev/qrel.txt',
-                       help='Path to qrel file for evaluation')
+    parser.add_argument('--training_data', default=None,
+                       help='Path to training data in RankLib format (will use model_version if not specified)')
+    parser.add_argument('--qrel_file', default=None,
+                       help='Path to qrel file for evaluation (will use split if not specified)')
     parser.add_argument('--retrieval_results', default='inputs/llm-set1-combined.txt',
                        help='Path to first-level retrieval results')
     parser.add_argument('--sparse_results', default='inputs/llm-set1-bm25-run.txt',
                        help='Path to sparse retrieval results')
     parser.add_argument('--dense_results', default='inputs/llm-set1-bge-dense-run.txt',
                        help='Path to dense retrieval results')
-    parser.add_argument('--model_output', default='outputs/models/feature_v2/model_parameters.json',
-                       help='Path to save trained model')
+    parser.add_argument('--model_output', default=None,
+                       help='Path to save trained model (will use model_version if not specified)')
+    
+    # Feature version selection
+    parser.add_argument('--feature_version', choices=['v1', 'v2', 'v3'], required=True,
+                       help='Feature version to use: v1 (original), v2 (normalized), or v3 (v1 + pageview + pagerank)')
     
     # Mode selection
     parser.add_argument('--eval_only', action='store_true',
@@ -360,21 +470,27 @@ def main():
     parser.add_argument('--model_path', default=None,
                        help='Path to existing model JSON file for evaluation-only mode')
     
-    # Evaluation parameters
-    parser.add_argument('--eval_k', type=int, default=10,
-                       help='k value for NDCG@k evaluation')
-    
     # Debugging and analysis
     parser.add_argument('--analyze_data', action='store_true',
                        help='Analyze training data quality before training')
-    parser.add_argument('--baseline_eval', action='store_true',
-                        help='Evaluate baseline retrieval performance without reranking')
     
     args = parser.parse_args()
+    
+    # Set default paths based on model_version and split if not explicitly provided
+    if args.training_data is None:
+        args.training_data = f'outputs/models/model_{args.model_version}/training_data_{args.split}.txt'
+
+    if args.qrel_file is None:
+        args.qrel_file = f'/home/wenxin/project/data/2025/generated-queries/llm-set1/{args.split}/qrel.txt'
+    
+    if args.model_output is None:
+        args.model_output = f'outputs/models/model_{args.model_version}/model_parameters.json'
     
     if args.eval_only:
         # Evaluation-only mode
         print("=== EVALUATION-ONLY MODE ===")
+        print(f"Using feature version: {args.feature_version}")
+        print(f"Using split: {args.split}")
         
         # Determine model path
         model_path = args.model_path if args.model_path else args.model_output
@@ -389,6 +505,8 @@ def main():
     else:
         # Training mode
         print("=== TRAINING MODE ===")
+        print(f"Using feature version: {args.feature_version}")
+        print(f"Using split: {args.split}")
         
         # Verify training data file exists
         if not os.path.exists(args.training_data):
@@ -427,22 +545,32 @@ def main():
 
         validation_set_pairs = get_retrieval_pairs_from_file(args.retrieval_results)
 
-        # Evaluate baseline if requested
-        if args.baseline_eval:
-            baseline_ndcg, baseline_recall = evaluate_baseline(validation_set_pairs, qrels, args.eval_k)
-            print()
+        # Evaluate baseline at multiple k values
+        baseline_results = evaluate_baseline(validation_set_pairs, qrels)
+        print()
 
-        # Calculate NDCG@k and Recall@k
-        ndcg, recall = evaluate_reranking(ranker, validation_set_pairs, qrels, sparse_results, dense_results, args.eval_k)
-        print(f"Reranked NDCG@{args.eval_k}: {ndcg:.4f}")
-        print(f"Reranked Recall@{args.eval_k}: {recall:.4f}")
+        # Calculate NDCG@k and Recall@k at multiple k values
+        reranked_results = evaluate_reranking(ranker, validation_set_pairs, qrels, sparse_results, dense_results, feature_version=args.feature_version)
         
-        # Show improvement if baseline was computed
-        if args.baseline_eval:
-            ndcg_improvement = ((ndcg - baseline_ndcg) / baseline_ndcg * 100) if baseline_ndcg > 0 else 0
-            recall_improvement = ((recall - baseline_recall) / baseline_recall * 100) if baseline_recall > 0 else 0
-            print(f"NDCG improvement: {ndcg_improvement:+.1f}%")
-            print(f"Recall improvement: {recall_improvement:+.1f}%")
+        # Print results for each k value
+        print("EVALUATION RESULTS:")
+        print("=" * 60)
+        for k in [10, 100, 1000]:
+            print(f"@{k}:")
+            print(f"  Baseline  - NDCG: {baseline_results[k]['ndcg']:.4f}, Recall: {baseline_results[k]['recall']:.4f}")
+            print(f"  Reranked  - NDCG: {reranked_results[k]['ndcg']:.4f}, Recall: {reranked_results[k]['recall']:.4f}")
+            
+            # Calculate improvements
+            ndcg_improvement = ((reranked_results[k]['ndcg'] - baseline_results[k]['ndcg']) / baseline_results[k]['ndcg'] * 100) if baseline_results[k]['ndcg'] > 0 else 0
+            recall_improvement = ((reranked_results[k]['recall'] - baseline_results[k]['recall']) / baseline_results[k]['recall'] * 100) if baseline_results[k]['recall'] > 0 else 0
+            
+            print(f"  Improvement - NDCG: {ndcg_improvement:+.2f}%, Recall: {recall_improvement:+.2f}%")
+            print()
+        
+        # Save evaluation results to files
+        output_dir = f"outputs/models/model_{args.model_version}"
+        os.makedirs(output_dir, exist_ok=True)
+        save_evaluation_results(baseline_results, reranked_results, args.model_version, args.feature_version, output_dir, args.split)
     else:
         print("Skipping evaluation - missing qrel file or retrieval results")
 
