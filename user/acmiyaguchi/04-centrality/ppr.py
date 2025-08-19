@@ -52,7 +52,9 @@ def load_graph_data_remapped(edges: pl.DataFrame) -> tuple[rx.PyDiGraph, pl.Data
             [
                 pl.col("src_idx").alias("src"),
                 pl.col("dst_idx").alias("dst"),
-                pl.col("score").alias("weight"),
+                pl.col("score").alias("weight")
+                if "score" in edges.columns
+                else pl.col("weight"),
             ]
         )
     )
