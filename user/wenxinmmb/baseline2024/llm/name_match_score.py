@@ -18,6 +18,10 @@ log = logging.getLogger("name_match_score")
 
 # Command:
 # python name_match_score.py --input output/dev3-o4-mini.jsonl --split dev3 --index_name llm_title_alias --run output/dev3-o4-mini-70-25.run --run_id o4-mini_alias
+# 
+# Index name options:
+# - llm_title_redirects: uses /home/wenxin/project/data/id2redirects.json
+# - llm_title_alias: uses /home/wenxin/project/data/id_to_aliases.json
 
 def get_llm_response_titles(query):
     # Extract entity names from LLM response format with title and relevance_score/score
@@ -27,27 +31,55 @@ def get_llm_response_titles(query):
 
     result = query['result']
     
+    # Handle format: single entity with various field names at top level
+    # Check for different title field names: 'title', 'entity', 'entity_title'
+    title_field = None
+    if 'title' in result:
+        title_field = 'title'
+    elif 'entity' in result:
+        title_field = 'entity'
+    elif 'entity_title' in result:
+        title_field = 'entity_title'
+    
+    if title_field:
+        return [result[title_field]]
+    
     # Handle format: entities is a list of dicts with 'title' and 'relevance_score'/'score'
     if 'entities' in result and isinstance(result['entities'], list):
         entities = result['entities']
         if entities and isinstance(entities[0], dict):
             # Check if entities have title and score fields
+            entity_title_field = None
             if 'title' in entities[0]:
-                # Sort by relevance_score or score in descending order
-                score_key = 'relevance_score' if 'relevance_score' in entities[0] else 'score'
-                if score_key in entities[0]:
+                entity_title_field = 'title'
+            elif 'entity' in entities[0]:
+                entity_title_field = 'entity'
+            elif 'entity_title' in entities[0]:
+                entity_title_field = 'entity_title'
+            
+            if entity_title_field:
+                # Sort by relevance_score, score, or relevance in descending order
+                score_key = None
+                if 'relevance_score' in entities[0]:
+                    score_key = 'relevance_score'
+                elif 'score' in entities[0]:
+                    score_key = 'score'
+                elif 'relevance' in entities[0]:
+                    score_key = 'relevance'
+                
+                if score_key:
                     # Sort by score descending, then extract titles
                     sorted_entities = sorted(entities, key=lambda x: x.get(score_key, 0), reverse=True)
-                    return [entity['title'] for entity in sorted_entities]
+                    return [entity[entity_title_field] for entity in sorted_entities]
                 else:
                     # No score field, just return titles in original order
-                    return [entity['title'] for entity in entities]
+                    return [entity[entity_title_field] for entity in entities]
     
     # If format doesn't match expected structure, return empty list
     print(f"[WARN] Could not extract entity names for query: {query.get('query_id')}, result: {result}")
     return []
 
-def create_title_index(dataset, dest_folder, index):
+def create_title_index(dataset, dest_folder, index, alias_path):
     log.info(f"creating files for indexing in {dest_folder}")
     docs_folder = os.path.join(dest_folder, "docs")
     os.makedirs(docs_folder, exist_ok=True)
@@ -56,7 +88,6 @@ def create_title_index(dataset, dest_folder, index):
     aliases = {}   
 
     # load the alias json file
-    alias_path = "/home/wenxin/project/data/id_to_aliases.json"
     if not os.path.exists(alias_path):
         raise ValueError(f"alias file not found: {alias_path}. Double check the path or run the script to generate it.")
     log.info(f"loading aliases from {alias_path}")
@@ -131,15 +162,12 @@ if __name__ == '__main__':
     parser.add_argument("--split", required=True, help="corresponding split i.e 'train', 'dev1', 'dev2','dev3', 'test'")
     parser.add_argument("--index_name", required=True, help="name of index")
     parser.add_argument("--run", required=True, help="path to save run")
-    parser.add_argument("--run_format", default=None, choices={"trec_eval"})
     parser.add_argument("--run_id", required=True, help="run id (required if run_format = trec_eval)")
     parser.add_argument("--ref_run", default=None, help="if provided, this run is used to break ties")
     parser.add_argument("--docs_path", default="./anserini_title_docs",
                         help="path to store (temp) documents for indexing")
     parser.add_argument("--index_path", default="./anserini_title_indices", help="path to store (all) indices")
-    parser.add_argument("--n_threads", default=8, type=int, help="number of threads (eval)")
-    parser.add_argument("--batch_size", default=16, type=int, help="batch size (eval) ")
-    parser.add_argument("--min_score", default=70, type=int, help="minimum fuzzy matching score threshold")
+    parser.add_argument("--min_score", default=100, type=int, help="minimum fuzzy matching score threshold")
     parser.add_argument("--bm25_k", default=10, type=int, help="number of BM25 results to retrieve")
 
     logging.basicConfig(level=logging.INFO)
@@ -148,8 +176,15 @@ if __name__ == '__main__':
     args = parser.parse_args()
     docs_path = os.path.join(args.docs_path, args.index_name)
     index = os.path.join(args.index_path, args.index_name)
-    # Always use wikidata aliases
-    AL_PATH = "/home/wenxin/project/data/id_to_aliases.json"
+    
+    # Set AL_PATH based on index_name
+    if args.index_name == "llm_title_redirects":
+        AL_PATH = "/home/wenxin/project/data/id2redirects.json"
+    elif args.index_name == "llm_title_alias":
+        AL_PATH = "/home/wenxin/project/data/id_to_aliases.json"
+    else:
+        raise ValueError(f"Unsupported index_name: {args.index_name}. Supported options are 'llm_title_redirects' and 'llm_title_alias'")
+    
     if not os.path.exists(index):
         log.warning(f"Index {index} does not exist, creating index with script llm_match_name.py!")
         assert False, "Indexing is not supported in this script. Please run llm_match_name.py to create the index."
@@ -226,6 +261,7 @@ if __name__ == '__main__':
             matched = process.extractOne(title, choices)
             if matched is not None:
                 matched_title, score = matched
+                print('strategy2 matches:', matched)
                 if score >= MIN_SCORE:
                     gen_title_to_doc_ids[title] = resolve(title=title,
                                                           matched_title=matched_title,
@@ -241,12 +277,23 @@ if __name__ == '__main__':
                         matches["strategy2_n"] += 1
                     print('title:', title, 'strategy 2 - fuzzy matches against BM25 retrieved choices:', gen_title_to_doc_ids[title])
 
-            # Try strategy 3: Remove braces and non-alpha from both title and choices
+            # Try strategy 3: Remove braces from title first, then regenerate choices based on that
             if title not in gen_title_to_doc_ids:
+                title_no_braces = remove_braces(title)
+                
+                # Regenerate choices by finding closest alias in res docs using title without braces
+                choices_regenerated = []
+                for doc in res:
+                    docid = doc.docid
+                    best_match, score = process.extractOne(title_no_braces, aliases[docid])
+                    choices_regenerated.append(best_match)
+                
                 # we need to retain the original titles for mapping it back
-                nobr2br = {remove_non_alpha(remove_braces(_)): _ for _ in choices}
+                nobr2br = {remove_non_alpha(remove_braces(_)): _ for _ in choices_regenerated}
                 choices_nobr = list(nobr2br.keys())
                 matched_nobr = process.extractOne(remove_non_alpha(remove_braces(title)), choices_nobr)
+                print('strategy3 matches:', nobr2br, choices_nobr, matched_nobr)
+
                 if matched_nobr is not None:
                     matched_title_nobr, score_nobr = matched_nobr
                     if score_nobr >= MIN_SCORE:
@@ -282,9 +329,11 @@ if __name__ == '__main__':
                     # Create mapping from normalized choices back to original choices
                     norm2orig = {remove_non_alpha(remove_braces(_)).strip(): _ for _ in choices_normalized}
                     choices_norm_list = list(norm2orig.keys())
-                    
+                    print('strategy4 choices:', choices_norm_list)
                     # Match normalized title against normalized choices
                     matched_norm = process.extractOne(title_normalized, choices_norm_list)
+                    print('strategy4 matches:', matched_norm)
+
                     if matched_norm is not None:
                         matched_title_norm, score_norm = matched_norm
                         if score_norm >= MIN_SCORE:

@@ -12,7 +12,7 @@ AVAILABLE_MODELS = [
     "google/gemma-3-27b-it",
     "openai/o4-mini"
 ]
-MODEL = AVAILABLE_MODELS[0]  # Default model
+MODEL = AVAILABLE_MODELS[2]  # Default model
 
 # Command:
 # python oprt_retrieve_score.py --input_file $DATA_PATH/dev3-2025/queries.jsonl --output_file output/dev3-gemini-2.5-flash-scored.jsonl --max_tokens 5000 --temperature 0.0
@@ -29,56 +29,94 @@ PROMPT_TEMPLATE = (
     "TOT Query: {query}"
 )
 
-def ask_llm(query, max_tokens, temperature):
+PROMPT_TEMPLATE_SINGLE = (
+    "Identify the single best entity that is a title of a Wikipedia page which answers the following tip-of-the-tongue query. "
+    "Provide the Wikipedia page title and a relevance score from 1-5, where:\n"
+    "- 1 = Irrelevant to the query\n"
+    "- 2 = Somewhat relevant\n"
+    "- 3 = Moderately relevant\n"
+    "- 4 = Highly relevant\n"
+    "- 5 = Most relevant and directly answers the query\n\n"
+    "Return a JSON object containing the best matching entity title and its relevance score.\n\n"
+    "TOT Query: {query}"
+)
+
+def ask_llm(query, max_tokens, temperature, single_entity):
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
         "Content-Type": "application/json"
     }
+    
+    # Choose prompt template based on single_entity flag
+    prompt_template = PROMPT_TEMPLATE_SINGLE if single_entity else PROMPT_TEMPLATE
+    
+    # Define JSON schema based on single_entity flag
+    if single_entity:
+        json_schema = {
+            "type": "object",
+            "properties": {
+                "title": {
+                    "type": "string",
+                    "description": "Wikipedia page title"
+                },
+                "relevance_score": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 5,
+                    "description": "Relevance score from 1 (irrelevant) to 5 (most relevant)"
+                }
+            },
+            "required": ["title", "relevance_score"],
+            "additionalProperties": False
+        }
+    else:
+        json_schema = {
+            "type": "object",
+            "properties": {
+                "entities": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "title": {
+                                "type": "string",
+                                "description": "Wikipedia page title"
+                            },
+                            "score": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 5,
+                                "description": "Relevance score from 1 (irrelevant) to 5 (most relevant)"
+                            }
+                        },
+                        "required": ["title", "score"],
+                        "additionalProperties": False
+                    },
+                    "maxItems": 20
+                }
+            },
+            "required": ["entities"],
+            "additionalProperties": False
+        }
+    
     data = {
         "model": MODEL,
         "messages": [
-            {"role": "user", "content": PROMPT_TEMPLATE.format(query=query)}
+            {"role": "user", "content": prompt_template.format(query=query)}
         ],
         "max_tokens": max_tokens,
         "temperature": temperature,
         "response_format": {
             "type": "json_schema",
             "strict": True,
-            "json_schema": {
-                "type": "object",
-                "properties": {
-                    "entities": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "title": {
-                                    "type": "string",
-                                    "description": "Wikipedia page title"
-                                },
-                                "score": {
-                                    "type": "integer",
-                                    "minimum": 1,
-                                    "maximum": 5,
-                                    "description": "Relevance score from 1 (irrelevant) to 5 (most relevant)"
-                                }
-                            },
-                            "required": ["title", "score"],
-                            "additionalProperties": False
-                        },
-                        "maxItems": 20
-                    }
-                },
-                "required": ["entities"],
-                "additionalProperties": False
-            }
+            "json_schema": json_schema
         }
     }
     response = requests.post(API_URL, headers=headers, json=data)
     response.raise_for_status()
     data_out = response.json()
-    print(f"LLM response: {data_out}")
     content = data_out["choices"][0]["message"]["content"]
+    print(f"LLM response: {content}")
     # Try to extract the JSON object from the response
     try:
         # If the model returns text before/after the JSON, extract the JSON part
@@ -98,12 +136,14 @@ if __name__ == "__main__":
     parser.add_argument("--start_line", type=int, default=0, help="Starting line number to process from (default: 0)")
     parser.add_argument("--max_tokens", type=int, default=5000, help="Maximum tokens for LLM response (default: 5000)")
     parser.add_argument("--temperature", type=float, default=0.0, help="Temperature for LLM response (default: 0.7)")
+    parser.add_argument("--single_entity", action="store_true", help="Ask for only the single best entity match instead of up to 20 entities")
     args = parser.parse_args()
     
     # Print model parameters being used
     print(f"Using model: {MODEL}")
     print(f"Max tokens: {args.max_tokens}")
     print(f"Temperature: {args.temperature}")
+    print(f"Single entity mode: {args.single_entity}")
     print(f"Input file: {args.input_file}")
     print(f"Output file: {args.output_file}")
     print(f"Start line: {args.start_line}")
@@ -122,7 +162,7 @@ if __name__ == "__main__":
             query_id = item["query_id"]
             query = item["query"]
             try:
-                result = ask_llm(query, args.max_tokens, args.temperature)
+                result = ask_llm(query, args.max_tokens, args.temperature, args.single_entity)
             except Exception as e:
                 result = {"error": str(e)}
             output = {
