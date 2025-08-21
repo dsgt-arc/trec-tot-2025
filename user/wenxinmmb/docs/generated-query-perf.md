@@ -25,7 +25,7 @@ trec_eval -m ndcg_cut.10,1000 -m recall.1000 -m recip_rank -c $DATA_PATH/2025/ge
 | Dev   | 0.0964 | 0.4050      | 0.1056  | 0.1436    |
 | Test  | 0.0940 | 0.4326      | 0.1034  | 0.1468    |
 
-For all
+## For all
 | Method | MRR    | Recall@2000 | NDCG@10 | NDCG@1000 |
 |--------|--------|-------------|---------|-----------|
 | Dense  | 0.0671 | 0.4874      | 0.0756  | 0.1307    |
