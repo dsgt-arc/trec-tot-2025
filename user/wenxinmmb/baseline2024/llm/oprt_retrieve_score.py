@@ -10,9 +10,9 @@ API_URL = "https://openrouter.ai/api/v1/chat/completions"
 AVAILABLE_MODELS = [
     "google/gemini-2.5-flash",
     "google/gemma-3-27b-it",
-    "openai/o4-mini"
+    "openai/gpt-4o-mini"
 ]
-MODEL = AVAILABLE_MODELS[2]  # Default model
+MODEL = AVAILABLE_MODELS[0]  # Default model
 
 # Command:
 # python oprt_retrieve_score.py --input_file $DATA_PATH/dev3-2025/queries.jsonl --output_file output/dev3-gemini-2.5-flash-scored.jsonl --max_tokens 5000 --temperature 0.0

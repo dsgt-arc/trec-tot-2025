@@ -78,6 +78,27 @@ Evaluation results for 100 queries across two datasets using BM25, BGE, and LLM 
 
 ---
 
+## LLM rerank results
+### Dev3-2025 Dataset (First 100 queries)
+
+Rerank configuration: `rerank_module/outputs/dev3-100-gemma12b-fs-v13/` and `rerank_module/outputs/llmset1-t100v1-gemini-fs-v1`
+
+### Dev3-2025 Dataset (First 100 queries)
+| Method | Recall@10 | NDCG@10 | Recall@100 | NDCG@100 | Recall@1000 | NDCG@1000 | Recall@2000 | NDCG@2000 |
+|--------|-----------|---------|-------------|----------|-------------|-----------|-------------|-----------|
+| BM25 (before) | 0.4400 | 0.3302 | 0.6200 | 0.3665 | 0.8100 | 0.3894 | 0.8100 | 0.3894 |
+| BM25 (after) | 0.7200 | 0.6798 | 0.7400 | 0.6849 | 0.8100 | 0.6937 | 0.8100 | 0.6937 |
+
+### LLM-Set1 Train Dataset (100 queries)
+| Method | Recall@10 | NDCG@10 | Recall@100 | NDCG@100 | Recall@1000 | NDCG@1000 | Recall@2000 | NDCG@2000 |
+|--------|-----------|---------|-------------|----------|-------------|-----------|-------------|-----------|
+| BM25 (before) | 0.1200 | 0.0896 | 0.3100 | 0.1285 | 0.4800 | 0.1499 | 0.4800 | 0.1499 |
+| BM25 (after) | 0.4400 | 0.3763 | 0.4500 | 0.3779 | 0.4800 | 0.3816 | 0.4800 | 0.3816 |
+| BM25 (after gemini flash-lite) | 0.4000 | 0.2819 | 0.4400 | 0.2881 | 0.4800 | 0.2938 | 0.4800 | 0.2938 |
+
+BM25 (after gemini flash-lite): is not competitive; its directory is `rerank_module/outputs/llmset1-t100v1-gemini-fs-v2`; in short; first-sentence, gemini-2.5-flash-lite
+
+
 ## Command Reference
 ```bash
 # Dev3-2025 evaluations
@@ -89,6 +110,9 @@ python $TOT/fastrank_imp/manual_scores.py $DATA_PATH/2025/dev3-2025/qrel-first-1
 python $TOT/fastrank_imp/manual_scores.py $DATA_PATH/2025/dev3-2025/qrel-first-100.txt $DATA_PATH/results/dev3-100/comb_500.txt
 python $TOT/fastrank_imp/manual_scores.py $DATA_PATH/2025/dev3-2025/qrel-first-100.txt $DATA_PATH/results/dev3-100/all.txt
 
+# Dev3-2025 LLM reranked evaluations
+$ python $TOT/fastrank_imp/manual_scores.py $DATA_PATH/2025/dev3-2025/qrel-first-100.txt $TOT/rerank_module/outputs/dev3-100-gemma12b-fs-v13/rerank-results-reformatted.txt
+
 # LLM-Set1 evaluations  
 python $TOT/fastrank_imp/manual_scores.py $DATA_PATH/2025/generated-queries/llm-set1/train/train-100-v1/qrel.txt $DATA_PATH/results/llmset1-train-100-v1/bge.txt
 python $TOT/fastrank_imp/manual_scores.py $DATA_PATH/2025/generated-queries/llm-set1/train/train-100-v1/qrel.txt $DATA_PATH/results/llmset1-train-100-v1/bm25.txt
@@ -97,4 +121,9 @@ python $TOT/fastrank_imp/manual_scores.py $DATA_PATH/2025/generated-queries/llm-
 # LLM-Set1 combined evaluations
 python $TOT/fastrank_imp/manual_scores.py $DATA_PATH/2025/generated-queries/llm-set1/train/train-100-v1/qrel.txt $DATA_PATH/results/llmset1-train-100-v1/comb_500.txt
 python $TOT/fastrank_imp/manual_scores.py $DATA_PATH/2025/generated-queries/llm-set1/train/train-100-v1/qrel.txt $DATA_PATH/results/llmset1-train-100-v1/all.txt
+
+# LLM-Set1 LLM reranked evaluations
+$ python $TOT/fastrank_imp/manual_scores.py $DATA_PATH/2025/generated-queries/llm-set1/train/train-100-v1/qrel.txt $TOT/rerank_module/outputs/llmset1-t100v1-gemini-fs-v1/rerank-results-reformatted.txt
+$ python $TOT/fastrank_imp/manual_scores.py $DATA_PATH/2025/generated-queries/llm-set1/train/train-100-v1/qrel.txt $TOT/rerank_module/outputs/llmset1-t100v1-gemini-fs-v2/rerank-results-reformatted.txt
+
 ```

@@ -121,6 +121,83 @@ def get_document_content(doc_id: str, corpus_file: str,
         }
     return {"title": "", "text": ""}
 
+def get_document_content_first_sentence(doc_id: str, corpus_file: str,
+                                       offset_map: Dict[str, Dict[str, int]]) -> Dict[str, str]:
+    """Get document content from corpus file using byte offsets, returning only the first sentence of the text."""
+    import nltk
+
+    # To install nltk sentence tokenize run the following command
+    # $ pip install nltk
+    # Run code:
+    # import nltk
+    # nltk.download('punkt_tab')
+
+    if doc_id not in offset_map:
+        return {"title": "", "text": ""}
+    offset_start = offset_map[doc_id]["offset_start"]
+    offset_end = offset_map[doc_id]["offset_end"]
+    with open(corpus_file, 'r', encoding='utf-8') as f:
+        f.seek(offset_start)
+        content = f.read(offset_end - offset_start)
+        doc_data = json.loads(content.strip())
+        full_text = doc_data.get('text', '')
+        try:
+            # Use nltk.sent_tokenize for robust sentence splitting
+            sentences = nltk.sent_tokenize(full_text)
+            first_sentence = sentences[0] if sentences else (full_text[:200] if full_text else "")
+        except Exception:
+            # Fallback if nltk is not available or fails
+            first_sentence = full_text[:200] if full_text else ""
+        return {
+            "title": doc_data.get('title', ''),
+            "text": first_sentence
+        }
+    return {"title": "", "text": ""}
+
+def get_document_content_title_only(doc_id: str, corpus_file: str,
+                                   offset_map: Dict[str, Dict[str, int]]) -> Dict[str, str]:
+    """Get document content from corpus file using byte offsets, returning only the title."""
+    if doc_id not in offset_map:
+        return {"title": "", "text": ""}
+    
+    offset_start = offset_map[doc_id]["offset_start"]
+    offset_end = offset_map[doc_id]["offset_end"]
+    
+    with open(corpus_file, 'r', encoding='utf-8') as f:
+        f.seek(offset_start)
+        content = f.read(offset_end - offset_start)
+        
+        # Parse the JSON content
+        doc_data = json.loads(content.strip())
+        return {
+            "title": doc_data.get('title', '')
+            # No text field at all for title-only mode
+        }
+    return {"title": ""}
+
+def get_document_content_first_paragraph(doc_id: str, corpus_file: str,
+                                        offset_map: Dict[str, Dict[str, int]]) -> Dict[str, str]:
+    """Get document content from corpus file using byte offsets, returning only the first paragraph of the text."""
+    import re
+    if doc_id not in offset_map:
+        return {"title": "", "text": ""}
+    offset_start = offset_map[doc_id]["offset_start"]
+    offset_end = offset_map[doc_id]["offset_end"]
+    with open(corpus_file, 'r', encoding='utf-8') as f:
+        f.seek(offset_start)
+        content = f.read(offset_end - offset_start)
+        doc_data = json.loads(content.strip())
+        full_text = doc_data.get('text', '')
+        # Split by paragraph (two or more newlines)
+        paragraphs = re.split(r'\n\s*\n', full_text)
+        # Find first non-empty paragraph
+        first_paragraph = next((p.strip() for p in paragraphs if p.strip()), full_text[:200] if full_text else "")
+        return {
+            "title": doc_data.get('title', ''),
+            "text": first_paragraph
+        }
+    return {"title": "", "text": ""}
+
 def parse_run_file(run_file: str) -> Dict[str, List[str]]:
     """Parse TREC run file to extract query-document pairs."""
     query_docs = {}
@@ -141,14 +218,32 @@ def construct_rerank_requests(
     queries_file: str,
     corpus_file: str,
     offset_file: str,
-    num_queries: int = None
+    num_queries: int = None,
+    document_mode: str = "full"
 ) -> List[Dict[str, Any]]:
-    """Construct rerank requests from run file and related data."""
+    """Construct rerank requests from run file and related data.
+    
+    Args:
+        document_mode: Controls document content retrieval:
+            - "full": Full text truncated to 1500 characters (default)
+            - "first_sentence": Only the first sentence of the text
+            - "title_only": Only the document title, no text content
+    """
     
     # Load all required data
     queries = load_queries(queries_file)
     offset_map = load_corpus_offset(offset_file)
     query_docs = parse_run_file(run_file)
+
+    # Select the appropriate document content function based on mode
+    if document_mode == "first_sentence":
+        doc_content_function = get_document_content_first_sentence
+    elif document_mode == "first_paragraph":
+        doc_content_function = get_document_content_first_paragraph
+    elif document_mode == "title_only":
+        doc_content_function = get_document_content_title_only
+    else:  # default to "full"
+        doc_content_function = get_document_content
 
     rerank_requests = []
 
@@ -167,9 +262,14 @@ def construct_rerank_requests(
                 candidates=[])
 
         for doc_id in doc_ids:
-            doc_content = get_document_content(doc_id, corpus_file, offset_map)
+            doc_content = doc_content_function(doc_id, corpus_file, offset_map)
+            # Build document dictionary, omitting text field if empty
+            doc_dict = {"title": doc_content['title']}
+            text_content = doc_content.get('text', '')
+            if text_content:  # Only add text field if it's not empty
+                doc_dict["text"] = text_content
             req.candidates.append(
-                Candidate(docid=doc_id, doc={"title": doc_content['title'], "text": doc_content['text']}, score=0.0))
+                Candidate(docid=doc_id, doc=doc_dict, score=0.0))
         if len(req.candidates) == 0:
             print(f"Warning: No candidates found for query {query_id}")
         rerank_requests.append(req)
@@ -182,15 +282,21 @@ def batch_rerank_with_openrouter(rerank_requests: List[Dict[str, Any]],
                                   api_keys: List[str],
                                   output_dir: str,
                                   save_invocations_history: bool,
-                                  prompt_template_path: str = "rank_llm/src/rank_llm/rerank/prompt_templates/rank_lrl_template.yaml") -> None:
+                                  prompt_template_path: str,
+                                  batch_rank_end: int,
+                                  batch_window_size: int,
+                                  batch_stride: int,
+                                  model_context_size: int,
+                                  document_mode: str) -> None:
     """Perform batch reranking using openai API compatible models, processing one at a time"""
 
     ranker = SafeOpenaiBackend(
         model=model,
-        context_size=128_000,
+        context_size=model_context_size,
         keys=api_keys, # API keys for the service
         api_base=api_base,
-        prompt_template_path=prompt_template_path
+        prompt_template_path=prompt_template_path,
+        window_size=batch_window_size
     )
     
     # Load checkpoint if exists
@@ -218,8 +324,10 @@ def batch_rerank_with_openrouter(rerank_requests: List[Dict[str, Any]],
             results = ranker.rerank_batch([request],
                                         populate_invocations_history=save_invocations_history,
                                         logging=False,
-                                        rank_end=1000)
-            
+                                        rank_end=batch_rank_end,
+                                        window_size=batch_window_size,
+                                        stride=batch_stride)
+
             # Write results immediately
             writer = DataWriter(results, append=True)
             writer.write_in_jsonl_format(f"{output_dir}/rerank-results.jsonl")
@@ -237,7 +345,11 @@ def batch_rerank_with_openrouter(rerank_requests: List[Dict[str, Any]],
                 'total_processed': len(processed_queries),
                 'model': model,
                 'api_base': api_base,
-                'timestamp': datetime.datetime.now().isoformat()
+                'timestamp': datetime.datetime.now().isoformat(),
+                'document_mode': document_mode,
+                'batch_window_size': batch_window_size,
+                'batch_stride': batch_stride,
+                'template_path': prompt_template_path
             }
             
             with open(checkpoint_file, 'w') as f:
@@ -274,6 +386,17 @@ def main():
                         help='Path to the prompt template YAML file (default: rank_llm/src/rank_llm/rerank/prompt_templates/rank_lrl_template.yaml)')
     parser.add_argument('--num-queries', type=int, default=None,
                         help='Number of queries to process for reranking (default: process all queries)')
+    parser.add_argument('--document-mode', type=str, default='full', 
+                        choices=['full', 'first_sentence', 'first_paragraph', 'title_only'],
+                        help='Document content mode: full (1500 chars), first_sentence (first sentence only), first_paragraph (first paragraph only), or title_only (title only) (default: full)')
+    parser.add_argument('--batch-rank-end', type=int, default=1000,
+                        help='Maximum number of documents to rerank per query (default: 1000)')
+    parser.add_argument('--batch-window-size', type=int, default=20,
+                        help='Window size for sliding window reranking (default: 20)')
+    parser.add_argument('--batch-stride', type=int, default=10,
+                        help='Stride for sliding window reranking (default: 10)')
+    parser.add_argument('--model-context-size', type=int, default=128000,
+                        help='Context size for the model (default: 128000)')
     
     args = parser.parse_args()
 
@@ -302,8 +425,8 @@ def main():
 
     # Construct rerank requests
     print("Loading data and constructing rerank requests")
-    rerank_requests = construct_rerank_requests(run_file, queries_file, corpus_file, offset_file, args.num_queries)
-    print(f"Constructed {len(rerank_requests)} rerank requests")
+    rerank_requests = construct_rerank_requests(run_file, queries_file, corpus_file, offset_file, args.num_queries, args.document_mode)
+    print(f"Constructed {len(rerank_requests)} rerank requests using document mode: {args.document_mode}")
 
     # Perform batch reranking
     print("Starting batch reranking")
@@ -313,8 +436,13 @@ def main():
                                  api_keys,
                                  output_dir,
                                  args.save_invocations_history,
-                                 prompt_template_path=args.prompt_template_path)
-    
+                                 args.prompt_template_path,
+                                 args.batch_rank_end,
+                                 args.batch_window_size,
+                                 args.batch_stride,
+                                 args.model_context_size,
+                                 args.document_mode)
+
     print("Reranking completed successfully!")
     print(f"Results saved in {output_dir}/rerank-results.jsonl and {output_dir}/rerank-results.txt")
     if args.save_invocations_history:
