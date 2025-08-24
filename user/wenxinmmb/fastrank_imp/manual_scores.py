@@ -92,7 +92,12 @@ def calculate_ndcg_at_k(qrels, runs, k):
         # Calculate IDCG@k (ideal DCG)
         all_relevances = list(qrels[query_id].values())
         all_relevances.sort(reverse=True)  # Sort in descending order
-        ideal_relevances = all_relevances[:k]  # Take top k
+        
+        # Pad with zeros to ensure we have exactly k values for fair comparison
+        ideal_relevances = all_relevances[:k]
+        if len(ideal_relevances) < k:
+            ideal_relevances.extend([0] * (k - len(ideal_relevances)))
+        
         idcg_k = calculate_dcg(ideal_relevances)
         
         # Calculate NDCG@k
@@ -111,7 +116,7 @@ if __name__ == "__main__":
     
     qrel_file = sys.argv[1]
     run_file = sys.argv[2]
-    k_values = [10, 100, 1000, 2000]
+    k_values = [10, 100, 1000, 2000, 3000]
     
     # Load data
     qrels = load_qrels(qrel_file)

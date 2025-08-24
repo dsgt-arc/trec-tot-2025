@@ -434,5 +434,5 @@ if __name__ == '__main__':
     run_id = args.run_id
     with open(args.run, "w") as writer:
         for qid, r in run.items():
-            for rank, (doc_id, score) in enumerate(sorted(r.items(), key=lambda _: -_[1])):
+            for rank, (doc_id, score) in enumerate(sorted(r.items(), key=lambda _: -_[1]), start=1):
                 writer.write(f"{qid}\tQ0\t{doc_id}\t{rank}\t{float(score)}\t{run_id}\n")
