@@ -83,6 +83,17 @@ Evaluation results for 100 queries across two datasets using BM25, BGE, and LLM 
 
 Rerank configuration: `rerank_module/outputs/dev3-100-gemma12b-fs-v13/` and `rerank_module/outputs/llmset1-t100v1-gemini-fs-v1`
 
+```
+{
+  "model": "google/gemini-2.5-flash",
+  "api_base": "https://openrouter.ai/api/v1",
+  "document_mode": "title_only",
+  "batch_window_size": 105,
+  "batch_stride": 100,
+  "template_path": "custom_templates/rank_lrl_v2.yaml"
+}
+```
+
 ### Dev3-2025 Dataset (First 100 queries)
 | Method | Recall@10 | NDCG@10 | Recall@100 | NDCG@100 | Recall@1000 | NDCG@1000 | Recall@2000 | NDCG@2000 |
 |--------|-----------|---------|-------------|----------|-------------|-----------|-------------|-----------|
