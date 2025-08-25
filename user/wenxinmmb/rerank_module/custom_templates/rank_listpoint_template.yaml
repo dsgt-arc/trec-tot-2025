@@ -1,0 +1,22 @@
+method: "singleturn_listpoint"
+prefix: |
+  Rank the PASSAGES by how well each text answers the QUESTION. For each passage, provide both a rank position and a relevance score.
+body: |
+  PASSAGE{rank} = "{candidate}"
+suffix: |-
+  QUESTION: "{query}"
+  PASSAGES: {psg_ids}
+  
+  Rank all PASSAGES by relevance to the QUESTION and assign scores:
+  - Score 10: Perfectly answers the question with comprehensive, accurate information
+  - Score 8-9: Highly relevant with most key information needed
+  - Score 6-7: Moderately relevant with some useful information
+  - Score 4-5: Somewhat relevant but incomplete or tangential
+  - Score 2-3: Minimally relevant with little useful information
+  - Score 0-1: Not relevant or contradictory to the question
+  
+  Output format: [{"rank": 1, "passage": "PASSAGE_ID", "score": SCORE}, ...]
+  
+  RANKED_PASSAGES =
+output_validation_regex: r'^\[(\{"rank":\s*\d+,\s*"passage":\s*"PASSAGE\d+",\s*"score":\s*\d+(\.\d+)?\})(,\s*\{"rank":\s*\d+,\s*"passage":\s*"PASSAGE\d+",\s*"score":\s*\d+(\.\d+)?\})*\]$'
+output_extraction_regex: r'"passage":\s*"PASSAGE(\d+)",\s*"score":\s*(\d+(?:\.\d+)?)"'
