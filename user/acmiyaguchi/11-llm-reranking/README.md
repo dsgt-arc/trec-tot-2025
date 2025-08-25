@@ -9,3 +9,7 @@ For reranking I only need the queries and qrels, but I've included everything fo
 ```bash
 rclone sync $HOME/scratch/trec-tot-2025/results/rerank gdrive-trec-tot-2025:data/rerank
 ```
+
+MODEL=google/gemma-3-12b-it RETRIEVAL_MODEL=pyterrier-bm25 DEVSET=dev3 sbatch rerank.sbatch
+MODEL=gaunernst/gemma-3-12b-it-qat-compressed-tensors RETRIEVAL_MODEL=pyterrier-bm25 DEVSET=dev3 sbatch rerank.sbatch
+MODEL=gaunernst/gemma-3-27b-it-qat-compressed-tensors RETRIEVAL_MODEL=pyterrier-bm25 DEVSET=dev3 sbatch rerank.sbatch

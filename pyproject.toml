@@ -20,6 +20,7 @@ dependencies = [
 [dependency-groups]
 dev = [
     "jupyterlab>=4.3.8",
+    "vllm==0.10.1"
 ]
 
 [project.urls]
