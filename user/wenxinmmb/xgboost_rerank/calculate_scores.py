@@ -1,9 +1,9 @@
 import pandas as pd
-import pyterrier as pt
 import json
 from tqdm import tqdm
 from FlagEmbedding import BGEM3FlagModel
 import argparse
+import os
 
 # Install
 # pip install -U FlagEmbedding
@@ -39,46 +39,6 @@ def score_query_docs(query_docs_dict, textscorer, tokeniser, mode, model):
                     print(f'Warning: Document text is empty docid={doc["docno"]}')
                     continue
 
-                # Split the document into paragraphs
-                # paragraphs = doc_text.split('\n\n')[:3]  # Limit to 3 paragraphs to save time
-                # paragraphs = doc_text.split('\n\n')
-
-                # Prepare sentence pairs for batch processing
-                # sentence_pairs = [[query_text, paragraph] for paragraph in paragraphs]
-
-                # Version1
-
-                # # Compute scores for all sentence pairs in a batch
-                # scores = model.compute_score(
-                #     sentence_pairs,
-                #     max_passage_length=8192
-                # )
-
-                # # Extract sparse and dense scores
-                # sparse_scores = scores['sparse']
-                # dense_scores = scores['dense']
-
-                # # Get the maximum scores
-                # max_sparse_score = max(sparse_scores)
-                # max_dense_score = max(dense_scores)
-
-                # Version2
-                # for sentence_pair in sentence_pairs[:3]:
-                #     scores = model.compute_score(
-                #         [sentence_pair],
-                #         max_passage_length=8192
-                #     )
-                #     sparse_score = scores['sparse'][0]
-                #     dense_score = scores['dense'][0]
-
-                #     if 'max_sparse_score' not in locals():
-                #         max_sparse_score = sparse_score
-                #         max_dense_score = dense_score
-                #     else:
-                #         max_sparse_score = max(max_sparse_score, sparse_score)
-                #         max_dense_score = max(max_dense_score, dense_score)
-
-                # Version3
                 scores = model.compute_score(
                     [[query_text, doc_text]],
                     max_passage_length=8192
@@ -175,29 +135,38 @@ def parse_arguments():
     """
     parser = argparse.ArgumentParser(description="Calculate BM25 or BGE-M3 scores for queries and documents.")
     parser.add_argument("--mode", required=True, choices=["pt", "bge"], help="Scoring mode: 'pt' for PyTerrier, 'bge' for BGE-M3.")
+    parser.add_argument("--retrieval-path", required=True, help="Path to the retrieval results file.")
+    parser.add_argument("--queries-path", required=True, help="Path to the queries file.")
+    parser.add_argument("--corpus-path", required=True, help="Path to the corpus file.")
+    parser.add_argument("--offset-path", required=True, help="Path to the corpus offset mapping file.")
+    parser.add_argument("--bm25-index-path", required=True, help="Path to the PyTerrier BM25 index.")
+    parser.add_argument("--output-dir", default="outputs/scores", help="Directory to save the output files. Default is 'outputs/scores'.")
+    parser.add_argument("--no-reorder", action="store_true", help="Do not reorder results by score; use the original order.")
+    parser.add_argument("--start-query", type=int, default=1, help="Start processing from the kth query (1-based index). Default is 1.")
     return parser.parse_args()
 
 # Example usage
 if __name__ == "__main__":
     args = parse_arguments()
 
-    DATA_PATH = "/home/wenxin/project/data"
-    queries_path = f"{DATA_PATH}/2025/dev3-2025/queries-first-100.jsonl"
-    # trec_path = f"{DATA_PATH}/results/dev3-100/bge.txt"
-    trec_path = f"{DATA_PATH}/results/dev3-100/llm.txt"
-    corpus_path = f"{DATA_PATH}/2025/corpus.jsonl"
-    offset_path = f"{DATA_PATH}/2025/corpus-offset-mapping.json"
-    index_path = "/home/wenxin/project/pyterrrier-index/trec-tot-2025-pyterrier-index"
-    output_prefix = f"outputs/run4-llm-dev3-{args.mode}"
+    queries_path = args.queries_path
+    retrieval_path = args.retrieval_path
+    corpus_path = args.corpus_path
+    offset_path = args.offset_path
+    bm25_index_path = args.bm25_index_path
+    output_prefix = f"{args.output_dir}/{args.retrieval_path.split('/')[-1].split('.')[0]}--md-{args.mode}"
 
     queryid_to_query = load_queries(queries_path)
-    queryid_to_docnos = load_trec_results(trec_path)
+    queryid_to_docnos = load_trec_results(retrieval_path)
     offset_mapping = load_offset_mapping(offset_path)
 
+    os.makedirs(args.output_dir, exist_ok=True)
+
     if args.mode == "pt":
+        import pyterrier as pt
         if not pt.java.started():
             pt.java.init()
-        index = pt.IndexFactory.of(index_path)
+        index = pt.IndexFactory.of(bm25_index_path)
         textscorer = pt.terrier.TextScorer(takes="docs", body_attr="text", wmodel="BM25", background_index=index)
         tokeniser = pt.java.autoclass(
             "org.terrier.indexing.tokenisation.Tokeniser"
@@ -207,22 +176,23 @@ if __name__ == "__main__":
         textscorer = None
         tokeniser = None
         # Initialize the BGE-M3 model
-        model = BGEM3FlagModel('BAAI/bge-m3', use_fp16=True)
+        model = BGEM3FlagModel('BAAI/bge-m3', use_fp16=True) # add devices="cuda:0" to use GPU?
 
-    # with open(output_path, "w", encoding="utf-8") as f:
     if args.mode == "bge":
-        f_dense = open(f"{output_prefix}-dense.txt", "w", encoding="utf-8")
-        f_sparse = open(f"{output_prefix}-sparse.txt", "w", encoding="utf-8")
+        f_dense = open(f"{output_prefix}-dense.txt", "a", encoding="utf-8")
+        f_sparse = open(f"{output_prefix}-sparse.txt", "a", encoding="utf-8")
     else:
-        f = open(f"{output_prefix}.txt", "w", encoding="utf-8")
+        f = open(f"{output_prefix}.txt", "a", encoding="utf-8")
 
-    for (queryid, query_text), (trec_qid, docnos) in tqdm(
-        zip(iter_queries(queries_path), iter_trec_results(trec_path)),
-        desc="Processing queries"
+    start_query = args.start_query
+    for idx, ((queryid, query_text), (trec_qid, docnos)) in enumerate(
+        tqdm(zip(iter_queries(queries_path), iter_trec_results(retrieval_path)), desc="Processing queries"), start=1
     ):
+        if idx < start_query:
+            continue
+
         assert queryid == trec_qid, f"Query ID mismatch: {queryid} != {trec_qid}"
         assert len(docnos) > 0, f"No document IDs found for query ID: {queryid}"
-        # assert len(docnos) >= 999, f"Not enough document IDs found for query ID: {queryid}, len={len(docnos)}"
         docno_to_text = get_doc_texts(docnos, offset_mapping, corpus_path)
         docs = [
             {"docno": docno, "text": docno_to_text.get(docno)}
@@ -232,17 +202,27 @@ if __name__ == "__main__":
             continue
         query_docs_dict = {queryid: {"query": query_text, "docs": docs}}
         scores = score_query_docs(query_docs_dict, textscorer, tokeniser, args.mode, model)
+
         if args.mode == "bge":
-            docs_sorted = sorted(scores[queryid], key=lambda x: x["dense_score"], reverse=True)
+            if not args.no_reorder:
+                docs_sorted = sorted(scores[queryid], key=lambda x: x["dense_score"], reverse=True)
+            else:
+                docs_sorted = scores[queryid]
             for rank, doc in enumerate(docs_sorted):
                 f_dense.write(f"{queryid} Q0 {doc['docno']} {rank+1} {doc['dense_score']} {args.mode}-dense\n")
 
-            docs_sorted = sorted(scores[queryid], key=lambda x: x["sparse_score"], reverse=True)
+            if not args.no_reorder:
+                docs_sorted = sorted(scores[queryid], key=lambda x: x["sparse_score"], reverse=True)
+            else:
+                docs_sorted = scores[queryid]
             for rank, doc in enumerate(docs_sorted):
                 f_sparse.write(f"{queryid} Q0 {doc['docno']} {rank+1} {doc['sparse_score']} {args.mode}-sparse\n")
 
         else:
-            docs_sorted = sorted(scores[queryid], key=lambda x: x["score"], reverse=True)
+            if not args.no_reorder:
+                docs_sorted = sorted(scores[queryid], key=lambda x: x["score"], reverse=True)
+            else:
+                docs_sorted = scores[queryid]
             for rank, doc in enumerate(docs_sorted):
                 score = doc.get("score", 0)
                 f.write(f"{queryid} Q0 {doc['docno']} {rank+1} {score} {args.mode}\n")
