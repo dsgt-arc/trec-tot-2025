@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH -Jrerank --account=paceship-dsgt_trec2025
 #SBATCH --nodes=1 --gpus=1 -pgpu-l40s --cpus-per-task=8
-#SBATCH -t8:00:00 -qinferno -ologs/rerank-%j.out
+#SBATCH -t12:00:00 -qinferno -ologs/rerank-%j.out
 #SBATCH --mail-type=START,END,FAIL --mail-user=acmiyaguchi@gatech.edu
 
 source $HOME/trec-tot-2025/.venv/bin/activate
@@ -9,13 +9,21 @@ set -ex
 # module load ollama/0.6.6
 # module load ollama
 # uv pip install vllm --torch-backend=auto
+hostname
+nvidia-smi
+ps aux
+
+# check if we're already serving something over port 8000 and kill if there is
+# unfortunately it looks like we keep getting scheduled onto the same machines here
+PORT=$(python3 -c "import socket; s=socket.socket(); s.bind(('',0)); print(s.getsockname()[1]); s.close()")
+echo "Using port: $PORT"
+lsof -i:$PORT && { echo "Port $PORT in use, exiting"; exit 1; }
 
 script_parent_path=$HOME/trec-tot-2025/user/acmiyaguchi/11-llm-reranking
 rerank_path=$HOME/trec-tot-2025/user/wenxinmmb/rerank_module
 official_path=$HOME/scratch/trec-tot-2025/data/official
 gdrive_path=$HOME/scratch/trec-tot-2025/data/gdrive/data
 output_path=$HOME/scratch/trec-tot-2025/results/rerank
-
 # gemma3:12b
 # mistral-nemo:12b
 # qwen3:14b
@@ -44,12 +52,27 @@ vllm bench throughput \
     --load-format dummy \
     --max-model-len 8092
 
+# function to wait for vllm api
+wait_for_vllm() {
+    echo "Waiting for vLLM API..."
+    for i in {1..30}; do
+        if curl -s -w "%{http_code}" -o /dev/null http://localhost:$PORT/v1/completions \
+            -H "Content-Type: application/json" \
+            -d "{\"model\":\"$MODEL\",\"prompt\":\"Hi\",\"max_tokens\":1,\"temperature\":0}" \
+            | grep -q "200"; then
+            echo "API ready"; return 0
+        fi
+        [ $i -eq 30 ] && { echo "API timeout"; kill $vllm_pid; exit 1; }
+        echo "Attempt $i/30..."; sleep 10
+    done
+}
+
 # start vllm in the background
 # vllm serve --help
-vllm serve $MODEL &
-sleep 10  # wait for vllm to start
+vllm serve $MODEL --port $PORT --max-model-len 32000 &
 vllm_pid=$!
 
+wait_for_vllm
 
 python $rerank_path/tot_llm_reranking.py \
     --input-trec-run $INPUT_PATH \
@@ -61,7 +84,8 @@ python $rerank_path/tot_llm_reranking.py \
     --save-invocations-history \
     --num-queries 100 \
     --output-dir $output_path/$OUTPUT_SUFFIX \
-    --api-url http://localhost:8000/v1
+    --api-url http://localhost:$PORT/v1 \
+    "$@"
 
 # now kill vllm
 kill $vllm_pid
