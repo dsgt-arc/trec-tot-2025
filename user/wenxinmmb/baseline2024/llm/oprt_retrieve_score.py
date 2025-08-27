@@ -10,7 +10,9 @@ API_URL = "https://openrouter.ai/api/v1/chat/completions"
 AVAILABLE_MODELS = [
     "google/gemini-2.5-flash",
     "google/gemma-3-27b-it",
-    "openai/gpt-4o-mini"
+    "openai/o4-mini",
+    "openai/gpt-oss-120b",
+    "google/gemini-2.5-pro"
 ]
 MODEL = AVAILABLE_MODELS[0]  # Default model
 

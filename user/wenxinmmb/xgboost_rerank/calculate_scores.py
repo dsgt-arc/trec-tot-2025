@@ -108,7 +108,7 @@ def iter_queries(queries_path):
     with open(queries_path, "r", encoding="utf-8") as f:
         for line in f:
             obj = json.loads(line)
-            yield obj["query_id"], obj["query"]
+            yield str(obj["query_id"]), obj["query"]
 
 def iter_trec_results(trec_path):
     with open(trec_path, "r", encoding="utf-8") as f:
@@ -143,6 +143,7 @@ def parse_arguments():
     parser.add_argument("--output-dir", default="outputs/scores", help="Directory to save the output files. Default is 'outputs/scores'.")
     parser.add_argument("--no-reorder", action="store_true", help="Do not reorder results by score; use the original order.")
     parser.add_argument("--start-query", type=int, default=1, help="Start processing from the kth query (1-based index). Default is 1.")
+    parser.add_argument("--num-queries", type=int, default=None, help="Number of queries to process from the start-query. Default is all queries.")
     return parser.parse_args()
 
 # Example usage
@@ -185,11 +186,17 @@ if __name__ == "__main__":
         f = open(f"{output_prefix}.txt", "a", encoding="utf-8")
 
     start_query = args.start_query
+    if args.num_queries is not None:
+        end_query = start_query + args.num_queries - 1
+    
     for idx, ((queryid, query_text), (trec_qid, docnos)) in enumerate(
         tqdm(zip(iter_queries(queries_path), iter_trec_results(retrieval_path)), desc="Processing queries"), start=1
     ):
         if idx < start_query:
             continue
+
+        if args.num_queries is not None and idx > end_query:
+            break
 
         assert queryid == trec_qid, f"Query ID mismatch: {queryid} != {trec_qid}"
         assert len(docnos) > 0, f"No document IDs found for query ID: {queryid}"

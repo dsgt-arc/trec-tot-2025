@@ -2,10 +2,15 @@ import xgboost as xgb
 import numpy as np
 import os
 from sklearn.metrics import ndcg_score
+import argparse
+import json  # Add this import
 
+parser = argparse.ArgumentParser(description="Train a LambdaMART model.")
+parser.add_argument("--dir", type=str, required=True, help="Working directory for outputs")
+args = parser.parse_args()
 # Define file paths
-features_file = "outputs/sample-v1/features.txt"
-model_file = "outputs/sample-v1/lambdamart_model.json"
+features_file = f"{args.dir}/features.txt"
+model_file = f"{args.dir}/lambdamart_model.json"
 
 # Load data from features file
 def load_data(features_file):
@@ -14,11 +19,16 @@ def load_data(features_file):
     data = []
     with open(features_file, "r") as f:
         for line in f:
+            # Ignore everything after the '#' symbol
+            line = line.split("#")[0].strip()
+            # Skip empty lines
+            if not line:
+                continue
             parts = line.strip().split()
             labels.append(float(parts[0]))  # Relevance label
             qid = parts[1].split(":")[1]  # Extract qid
             qids.append(int(qid))
-            features = [float(part.split(":")[1]) for part in parts[2:] if part.startswith("1:") or part.startswith("2:")]
+            features = [float(part.split(":")[1]) for part in parts[2:]]
             data.append(features)
     return np.array(data), np.array(labels), np.array(qids)
 
@@ -111,3 +121,20 @@ final_ndcg, final_recall = calculate_metrics(labels, final_preds, qids, k_values
 print(f"Final NDCG: {final_ndcg}")
 for k in k_values:
     print(f"Final Recall@{k}: {final_recall[k]}")
+
+# Save metrics to a JSON file
+stats_file = f"{args.dir}/model_stats.json"
+stats = {
+    "initial": {
+        "ndcg": initial_ndcg,
+        "recall": {f"Recall@{k}": initial_recall[k] for k in k_values}
+    },
+    "final": {
+        "ndcg": final_ndcg,
+        "recall": {f"Recall@{k}": final_recall[k] for k in k_values}
+    }
+}
+
+with open(stats_file, "w") as f:
+    json.dump(stats, f, indent=4)
+print(f"Model statistics saved to {stats_file}")
