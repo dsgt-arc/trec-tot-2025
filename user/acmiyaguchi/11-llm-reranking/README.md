@@ -168,8 +168,122 @@ done > v3.txt
 for path in /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/results/rerank/v3*; do
     echo $path
     trec_eval \
-        -m ndcg_cut.10,1000 -m recall.1000 -m recip_rank -c \
+        -m ndcg_cut.10,100,1000 -m recall.10,100,1000 -m recip_rank -c \
         /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev3-2025-qrel-h100.txt \
         $path/rerank-results-reformatted.txt
 done
+```
+
+## v4 experiments
+
+how long does it take to do varying numbers of results (up to 1000).
+
+```bash
+for model in gaunernst/gemma-3-12b-it-qat-compressed-tensors gaunernst/gemma-3-27b-it-qat-compressed-tensors; do
+    for retrieval in pyterrier-bm25; do
+        for n in $(seq 100 100 1000); do
+            echo sleep 10
+            echo MODEL=$model RETRIEVAL_MODEL=$retrieval DEVSET=dev3 BATCH_RANK_END=$n NUM_QUERIES=10 sbatch -J n$n-$model rerank.sbatch
+        done
+    done
+done
+```
+
+```bash
+# oops i messed up, they didn't get differentiated
+for path in /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/results/rerank/v4*; do echo $path; done
+```
+
+```
+$ duckdb -c "
+> -- Load the data
+> CREATE TABLE timing AS SELECT * FROM read_csv_auto('timing_data.csv');
+>
+> -- Show all data
+> SELECT * FROM timing ORDER BY model, query_count;
+>
+> -- Filter out anomalous entries (< 5 minutes runtime for 800+ queries)
+> CREATE TABLE clean_timing AS
+> SELECT * FROM timing
+> WHERE NOT (query_count >= 800 AND walltime_minutes < 5);
+>
+> -- Show cleaned data
+> SELECT 'CLEANED DATA:' as note;
+> SELECT * FROM clean_timing ORDER BY model, query_count;
+>
+> -- Calculate linear regression for each model
+> SELECT
+>     model,
+>     REGR_SLOPE(walltime_minutes, query_count) as slope_min_per_query,
+>     REGR_INTERCEPT(walltime_minutes, query_count) as intercept_minutes,
+>     REGR_R2(walltime_minutes, query_count) as r_squared,
+>     COUNT(*) as data_points
+> FROM clean_timing
+> GROUP BY model;
+> "
+┌─────────┬─────────────┬──────────────────┬───────────┐
+│  model  │ query_count │ walltime_minutes │  status   │
+│ varchar │    int64    │      double      │  varchar  │
+├─────────┼─────────────┼──────────────────┼───────────┤
+│ 12B-QAT │         100 │             10.8 │ COMPLETED │
+│ 12B-QAT │         200 │            14.93 │ COMPLETED │
+│ 12B-QAT │         300 │            18.92 │ COMPLETED │
+│ 12B-QAT │         400 │            22.85 │ COMPLETED │
+│ 12B-QAT │         500 │            26.82 │ COMPLETED │
+│ 12B-QAT │         600 │             31.4 │ COMPLETED │
+│ 12B-QAT │         700 │             34.9 │ COMPLETED │
+│ 12B-QAT │         800 │              1.9 │ COMPLETED │
+│ 12B-QAT │         900 │             1.35 │ COMPLETED │
+│ 12B-QAT │        1000 │            47.48 │ COMPLETED │
+│ 27B-QAT │         100 │            13.73 │ COMPLETED │
+│ 27B-QAT │         200 │            18.75 │ COMPLETED │
+│ 27B-QAT │         300 │            26.78 │ COMPLETED │
+│ 27B-QAT │         400 │             34.7 │ COMPLETED │
+│ 27B-QAT │         500 │            42.22 │ COMPLETED │
+│ 27B-QAT │         600 │             6.15 │ COMPLETED │
+│ 27B-QAT │         700 │            51.52 │ COMPLETED │
+│ 27B-QAT │         800 │            58.52 │ COMPLETED │
+│ 27B-QAT │         900 │            65.28 │ COMPLETED │
+│ 27B-QAT │        1000 │            64.62 │ COMPLETED │
+├─────────┴─────────────┴──────────────────┴───────────┤
+│ 20 rows                                    4 columns │
+└──────────────────────────────────────────────────────┘
+┌───────────────┐
+│     note      │
+│    varchar    │
+├───────────────┤
+│ CLEANED DATA: │
+└───────────────┘
+┌─────────┬─────────────┬──────────────────┬───────────┐
+│  model  │ query_count │ walltime_minutes │  status   │
+│ varchar │    int64    │      double      │  varchar  │
+├─────────┼─────────────┼──────────────────┼───────────┤
+│ 12B-QAT │         100 │             10.8 │ COMPLETED │
+│ 12B-QAT │         200 │            14.93 │ COMPLETED │
+│ 12B-QAT │         300 │            18.92 │ COMPLETED │
+│ 12B-QAT │         400 │            22.85 │ COMPLETED │
+│ 12B-QAT │         500 │            26.82 │ COMPLETED │
+│ 12B-QAT │         600 │             31.4 │ COMPLETED │
+│ 12B-QAT │         700 │             34.9 │ COMPLETED │
+│ 12B-QAT │        1000 │            47.48 │ COMPLETED │
+│ 27B-QAT │         100 │            13.73 │ COMPLETED │
+│ 27B-QAT │         200 │            18.75 │ COMPLETED │
+│ 27B-QAT │         300 │            26.78 │ COMPLETED │
+│ 27B-QAT │         400 │             34.7 │ COMPLETED │
+│ 27B-QAT │         500 │            42.22 │ COMPLETED │
+│ 27B-QAT │         600 │             6.15 │ COMPLETED │
+│ 27B-QAT │         700 │            51.52 │ COMPLETED │
+│ 27B-QAT │         800 │            58.52 │ COMPLETED │
+│ 27B-QAT │         900 │            65.28 │ COMPLETED │
+│ 27B-QAT │        1000 │            64.62 │ COMPLETED │
+├─────────┴─────────────┴──────────────────┴───────────┤
+│ 18 rows                                    4 columns │
+└──────────────────────────────────────────────────────┘
+┌─────────┬─────────────────────┬────────────────────┬────────────────────┬─────────────┐
+│  model  │ slope_min_per_query │ intercept_minutes  │     r_squared      │ data_points │
+│ varchar │       double        │       double       │       double       │    int64    │
+├─────────┼─────────────────────┼────────────────────┼────────────────────┼─────────────┤
+│ 27B-QAT │ 0.05798848484848485 │  6.333333333333336 │ 0.6629267830691583 │          10 │
+│ 12B-QAT │ 0.04066302521008403 │ 6.6975630252100835 │  0.999752265889027 │           8 │
+└─────────┴─────────────────────┴────────────────────┴────────────────────┴─────────────┘
 ```

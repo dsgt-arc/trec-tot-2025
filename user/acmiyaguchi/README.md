@@ -40,6 +40,9 @@ I've configured rclone to sync directories to the shared google drive for the pr
 ```bash
 rclone sync gdrive-trec-tot-2025: $HOME/scratch/trec-tot-2025/data/gdrive
 
+# shared retrieval stuff is important
+rclone sync gdrive-trec-tot-2025:data/shared_retrieval_results $HOME/scratch/trec-tot-2025/data/gdrive/data/shared_retrieval_results
+
 # copy instead
 rclone copy gdrive-trec-tot-2025: $HOME/scratch/trec-tot-2025/data/gdrive
 ```

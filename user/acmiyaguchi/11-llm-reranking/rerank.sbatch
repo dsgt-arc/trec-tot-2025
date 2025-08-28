@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH -Jrerank --account=paceship-dsgt_trec2025
-#SBATCH --nodes=1 --gpus=1 -pgpu-l40s --cpus-per-task=8
-#SBATCH -t12:00:00 -qinferno -ologs/rerank-%j.out
+#SBATCH --nodes=1 --partition=gpu-l40s --gres=gpu:L40s
+#SBATCH -t12:00:00 -qinferno -ologs/rerank-v4-%j.out
 #SBATCH --mail-type=START,END,FAIL --mail-user=acmiyaguchi@gatech.edu
 
 source $HOME/trec-tot-2025/.venv/bin/activate
@@ -34,8 +34,9 @@ MODEL_SANITIZED=$(echo "$MODEL" | sed 's/[/:]/-/g')
 # bge-passage-dense  gemini-2.5-flash  mini-o4  pyterrier-bm25
 RETRIEVAL_MODEL=${RETRIEVAL_MODEL:-"pyterrier-bm25"}
 DEVSET=${DEVSET:-"dev3"}
-OUTPUT_SUFFIX=v3-${RETRIEVAL_MODEL}-${DEVSET}-${MODEL_SANITIZED}-rerank
+OUTPUT_SUFFIX=v4-${RETRIEVAL_MODEL}-${DEVSET}-${MODEL_SANITIZED}-rerank
 INPUT_PATH=$gdrive_path/shared_retrieval_results/$RETRIEVAL_MODEL/$DEVSET.run
+num_queries=${NUM_QUERIES:-100}
 
 # check if rerank-results already exist and exit early
 if [ -f "$output_path/$OUTPUT_SUFFIX/rerank-results-reformatted.txt" ]; then
@@ -72,8 +73,9 @@ vllm serve $MODEL --port $PORT --max-model-len 65536 &
 vllm_pid=$!
 
 wait_for_vllm
+nvidia-smi
 
-python $rerank_path/tot_llm_reranking.py \
+time python $rerank_path/tot_llm_reranking.py \
     --input-trec-run $INPUT_PATH \
     --queries-file $official_path/$DEVSET-2025-queries.jsonl \
     --corpus-file $official_path/trec-tot-2025-corpus.jsonl \
@@ -81,8 +83,8 @@ python $rerank_path/tot_llm_reranking.py \
     --prompt-template-path $script_parent_path/rank_lrl_template.yaml \
     --model $MODEL \
     --save-invocations-history \
-    --num-queries 100 \
-    --batch-rank-end 100 \
+    --num-queries $num_queries \
+    --batch-rank-end ${BATCH_RANK_END:-100} \
     --output-dir $output_path/$OUTPUT_SUFFIX \
     --api-url http://localhost:$PORT/v1 \
     "$@"
@@ -99,19 +101,18 @@ function run_trec_eval {
 	local run_file=$1
 	local qrel_file=$2
 	trec_eval \
-		-m ndcg_cut.10,1000 \
-		-m recall.1000 \
-		-m recip_rank \
+		-m ndcg_cut.10,100,1000 \
+		-m recall.10,100,1000 \
         --complete_rel_info_wanted \
 		$qrel_file \
 		$run_file
 }
 
 # let's create a truncated devset file
-truncated=$official_path/$DEVSET-2025-qrel-h100.txt
+truncated=$official_path/$DEVSET-2025-qrel-h${num_queries}.txt
 # check if exists
 if [ ! -f "$truncated" ]; then
-    cat $official_path/$DEVSET-2025-qrel.txt | head -n100 > $truncated
+    cat $official_path/$DEVSET-2025-qrel.txt | head -n${num_queries} > $truncated
 fi
 
 echo "original results"
