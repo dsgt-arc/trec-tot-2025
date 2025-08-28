@@ -11,7 +11,6 @@ set -ex
 # uv pip install vllm --torch-backend=auto
 hostname
 nvidia-smi
-ps aux
 
 # check if we're already serving something over port 8000 and kill if there is
 # unfortunately it looks like we keep getting scheduled onto the same machines here
@@ -35,11 +34,11 @@ MODEL_SANITIZED=$(echo "$MODEL" | sed 's/[/:]/-/g')
 # bge-passage-dense  gemini-2.5-flash  mini-o4  pyterrier-bm25
 RETRIEVAL_MODEL=${RETRIEVAL_MODEL:-"pyterrier-bm25"}
 DEVSET=${DEVSET:-"dev3"}
-OUTPUT_SUFFIX=v2-${RETRIEVAL_MODEL}-${DEVSET}-${MODEL_SANITIZED}-rerank
+OUTPUT_SUFFIX=v3-${RETRIEVAL_MODEL}-${DEVSET}-${MODEL_SANITIZED}-rerank
 INPUT_PATH=$gdrive_path/shared_retrieval_results/$RETRIEVAL_MODEL/$DEVSET.run
 
 # check if rerank-results already exist and exit early
-if [ -f "$output_path/$OUTPUT_SUFFIX/rerank-results.txt" ]; then
+if [ -f "$output_path/$OUTPUT_SUFFIX/rerank-results-reformatted.txt" ]; then
 	echo "Rerank results already exist. Exiting."
 	exit 0
 fi
@@ -55,7 +54,7 @@ vllm bench throughput \
 # function to wait for vllm api
 wait_for_vllm() {
     echo "Waiting for vLLM API..."
-    for i in {1..30}; do
+    for i in {1..50}; do
         if curl -s -w "%{http_code}" -o /dev/null http://localhost:$PORT/v1/completions \
             -H "Content-Type: application/json" \
             -d "{\"model\":\"$MODEL\",\"prompt\":\"Hi\",\"max_tokens\":1,\"temperature\":0}" \
@@ -63,13 +62,13 @@ wait_for_vllm() {
             echo "API ready"; return 0
         fi
         [ $i -eq 30 ] && { echo "API timeout"; kill $vllm_pid; exit 1; }
-        echo "Attempt $i/30..."; sleep 10
+        echo "Attempt $i/50..."; sleep 10
     done
 }
 
 # start vllm in the background
 # vllm serve --help
-vllm serve $MODEL --port $PORT --max-model-len 32000 &
+vllm serve $MODEL --port $PORT --max-model-len 65536 &
 vllm_pid=$!
 
 wait_for_vllm
@@ -83,6 +82,7 @@ python $rerank_path/tot_llm_reranking.py \
     --model $MODEL \
     --save-invocations-history \
     --num-queries 100 \
+    --batch-rank-end 100 \
     --output-dir $output_path/$OUTPUT_SUFFIX \
     --api-url http://localhost:$PORT/v1 \
     "$@"
@@ -92,6 +92,9 @@ kill $vllm_pid
 
 python $rerank_path/rewrite_score.py $output_path/$OUTPUT_SUFFIX/rerank-results.txt
 
+# also write out the current slurm task id to a file
+echo $SLURM_JOB_ID > $output_path/$OUTPUT_SUFFIX/slurm_job_id.txt
+
 function run_trec_eval {
 	local run_file=$1
 	local qrel_file=$2
@@ -99,19 +102,26 @@ function run_trec_eval {
 		-m ndcg_cut.10,1000 \
 		-m recall.1000 \
 		-m recip_rank \
-        -c \
+        --complete_rel_info_wanted \
 		$qrel_file \
 		$run_file
 }
 
+# let's create a truncated devset file
+truncated=$official_path/$DEVSET-2025-qrel-h100.txt
+# check if exists
+if [ ! -f "$truncated" ]; then
+    cat $official_path/$DEVSET-2025-qrel.txt | head -n100 > $truncated
+fi
+
 echo "original results"
 run_trec_eval \
 	$INPUT_PATH \
-	$official_path/$DEVSET-2025-qrel.txt
+	$truncated
 
 echo "reranked results"
 run_trec_eval \
 	$output_path/$OUTPUT_SUFFIX/rerank-results-reformatted.txt \
-	$official_path/$DEVSET-2025-qrel.txt
+	$truncated
 
 exit 0
