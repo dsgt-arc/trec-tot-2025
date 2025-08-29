@@ -27,9 +27,24 @@ def get_llm_response_titles(query):
     # Extract entity names from LLM response format with title and relevance_score/score
     assert 'result' in query, "query should have 'result' field"
     if 'error' in query['result']:
-        return []  # skip queries with errors
-
-    result = query['result']
+        # Attempt to extract the JSON part from the error message
+        error_message = query['result']['error']
+        if "```json" in error_message:
+            try:
+                # Extract the JSON part wrapped in ```json``` and parse it
+                json_start = error_message.find("```json") + len("```json")
+                json_end = error_message.rfind("```")
+                json_part = error_message[json_start:json_end].strip()
+                parsed_json = json.loads(json_part)
+                result = parsed_json
+            except json.JSONDecodeError:
+                print(f"[ERROR] Failed to parse JSON from error message: {error_message}")
+                return []
+        else:
+            print(f"[ERROR] Unrecognized error format: {error_message}")
+            return []  # Skip queries with errors if JSON extraction fails
+    else:
+        result = query['result']
     
     # Handle format: single entity with various field names at top level
     # Check for different title field names: 'title', 'entity', 'entity_title'
@@ -70,11 +85,33 @@ def get_llm_response_titles(query):
                 if score_key:
                     # Sort by score descending, then extract titles
                     sorted_entities = sorted(entities, key=lambda x: x.get(score_key, 0), reverse=True)
-                    return [entity[entity_title_field] for entity in sorted_entities]
+                    # print('sorted entity!', sorted_entities)
+                    # print('entity title field', entity_title_field)
+                    # from pprint import pprint
+                    # pprint(sorted_entities)
+                    for entity in sorted_entities:
+                        if entity_title_field not in entity:
+                            print(f"[WARN] Missing title field '{entity_title_field}' in entity: {entity}")
+                    return [entity[entity_title_field] for entity in sorted_entities if entity_title_field in entity]
                 else:
                     # No score field, just return titles in original order
-                    return [entity[entity_title_field] for entity in entities]
+                    return [entity[entity_title_field] for entity in entities if entity_title_field in entity]
     
+    
+    # Handle JSON format 1: List of dictionaries with 'title' and 'score'
+    if isinstance(result, list) and all(isinstance(item, dict) and 'title' in item for item in result):
+        return [item['title'] for item in sorted(result, key=lambda x: x.get('score', 0), reverse=True)]
+
+    # Handle JSON format 2: Dictionary with titles as keys and scores as values
+    if isinstance(result, dict) and all(isinstance(value, (int, float)) for value in result.values()):
+        return [title for title, _ in sorted(result.items(), key=lambda x: x[1], reverse=True)]
+
+    # Handle JSON format 3: Dictionary with 'candidates' key containing a list of dictionaries
+    if 'candidates' in result and isinstance(result['candidates'], list):
+        candidates = result['candidates']
+        if all(isinstance(candidate, dict) and 'title' in candidate for candidate in candidates):
+            return [candidate['title'] for candidate in sorted(candidates, key=lambda x: x.get('relevance', 0), reverse=True)]
+
     # If format doesn't match expected structure, return empty list
     print(f"[WARN] Could not extract entity names for query: {query.get('query_id')}, result: {result}")
     return []
@@ -208,7 +245,7 @@ if __name__ == '__main__':
     titles = []
     for query in queries:
         title_list = get_llm_response_titles(query)
-        print(f"query: {query['query_id']}, titles: {title_list}")
+        # print(f"query: {query['query_id']}, titles: {title_list}")
         titles.extend(title_list)
 
     # dedup
@@ -244,7 +281,7 @@ if __name__ == '__main__':
                 matches["exact_1"] += 1
             else:
                 matches["exact_n"] += 1
-            print('title:', title, 'strategy 1 - exact matches:', gen_title_to_doc_ids[title])
+            # print('title:', title, 'strategy 1 - exact matches:', gen_title_to_doc_ids[title])
         else:
 
             # no exact match, perform retrieval, followed by matching
@@ -261,7 +298,7 @@ if __name__ == '__main__':
             matched = process.extractOne(title, choices)
             if matched is not None:
                 matched_title, score = matched
-                print('strategy2 matches:', matched)
+                # print('strategy2 matches:', matched)
                 if score >= MIN_SCORE:
                     gen_title_to_doc_ids[title] = resolve(title=title,
                                                           matched_title=matched_title,
@@ -272,10 +309,10 @@ if __name__ == '__main__':
 
                     if len(gen_title_to_doc_ids[title]) == 1:
                         matches["strategy2_1"] += 1
-                        print(title, gen_title_to_doc_ids[title])
+                        # print(title, gen_title_to_doc_ids[title])
                     else:
                         matches["strategy2_n"] += 1
-                    print('title:', title, 'strategy 2 - fuzzy matches against BM25 retrieved choices:', gen_title_to_doc_ids[title])
+                    # print('title:', title, 'strategy 2 - fuzzy matches against BM25 retrieved choices:', gen_title_to_doc_ids[title])
 
             # Try strategy 3: Remove braces from title first, then regenerate choices based on that
             if title not in gen_title_to_doc_ids:
@@ -292,7 +329,7 @@ if __name__ == '__main__':
                 nobr2br = {remove_non_alpha(remove_braces(_)): _ for _ in choices_regenerated}
                 choices_nobr = list(nobr2br.keys())
                 matched_nobr = process.extractOne(remove_non_alpha(remove_braces(title)), choices_nobr)
-                print('strategy3 matches:', nobr2br, choices_nobr, matched_nobr)
+                # print('strategy3 matches:', nobr2br, choices_nobr, matched_nobr)
 
                 if matched_nobr is not None:
                     matched_title_nobr, score_nobr = matched_nobr
@@ -310,7 +347,7 @@ if __name__ == '__main__':
                             matches["strategy3_1"] += 1
                         else:
                             matches["strategy3_n"] += 1
-                        print('title:', title, 'strategy 3 - fuzzy matches after removing brackets/non-alpha from both title and choices:', gen_title_to_doc_ids[title])
+                        # print('title:', title, 'strategy 3 - fuzzy matches after removing brackets/non-alpha from both title and choices:', gen_title_to_doc_ids[title])
 
             # Try strategy 4: Remove brackets and non-alpha from original title, do BM25 search, then match
             if title not in gen_title_to_doc_ids:
@@ -329,10 +366,10 @@ if __name__ == '__main__':
                     # Create mapping from normalized choices back to original choices
                     norm2orig = {remove_non_alpha(remove_braces(_)).strip(): _ for _ in choices_normalized}
                     choices_norm_list = list(norm2orig.keys())
-                    print('strategy4 choices:', choices_norm_list)
+                    # print('strategy4 choices:', choices_norm_list)
                     # Match normalized title against normalized choices
                     matched_norm = process.extractOne(title_normalized, choices_norm_list)
-                    print('strategy4 matches:', matched_norm)
+                    # print('strategy4 matches:', matched_norm)
 
                     if matched_norm is not None:
                         matched_title_norm, score_norm = matched_norm
@@ -350,7 +387,7 @@ if __name__ == '__main__':
                                 matches["strategy4_1"] += 1
                             else:
                                 matches["strategy4_n"] += 1
-                            print('title:', title, 'strategy 4 - fuzzy matches after normalizing title and doing new BM25 search:', gen_title_to_doc_ids[title])
+                            # print('title:', title, 'strategy 4 - fuzzy matches after normalizing title and doing new BM25 search:', gen_title_to_doc_ids[title])
 
             # If no strategy worked, add to unmatched
             if title not in gen_title_to_doc_ids:
@@ -364,8 +401,8 @@ if __name__ == '__main__':
                 }
                 print('title:', title, 'no match found after all strategies')
 
-    print(matches)
-    print(f"unmatched: {len(unmatched)}")
+    # print(matches)
+    # print(f"unmatched: {len(unmatched)}")
     rows = []
 
     for title in unmatched:
@@ -393,10 +430,14 @@ if __name__ == '__main__':
     # qid -> doc_id -> relevance
     run = {}
     # create run
+    no_resp_qid = []
     for query in queries:
         qid = query["query_id"]
         run[qid] = {}
         llm_titles = get_llm_response_titles(query)
+        if llm_titles is None or len(llm_titles) == 0:
+            no_resp_qid.append(qid)
+            continue
         ranks = range(len(llm_titles), 0, -1)
         for rank, title in zip(ranks, llm_titles):
             gen_titles = gen_title_to_doc_ids.get(title, [])
@@ -436,3 +477,7 @@ if __name__ == '__main__':
         for qid, r in run.items():
             for rank, (doc_id, score) in enumerate(sorted(r.items(), key=lambda _: -_[1]), start=1):
                 writer.write(f"{qid}\tQ0\t{doc_id}\t{rank}\t{float(score)}\t{run_id}\n")
+
+    # write summary for no response count
+    print(f"No response for queries: {no_resp_qid}")
+    print(f"No response for {len(no_resp_qid)}/{len(queries)} queries")

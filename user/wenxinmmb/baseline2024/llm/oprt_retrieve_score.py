@@ -14,7 +14,6 @@ AVAILABLE_MODELS = [
     "openai/gpt-oss-120b",
     "google/gemini-2.5-pro"
 ]
-MODEL = AVAILABLE_MODELS[0]  # Default model
 
 # Command:
 # python oprt_retrieve_score.py --input_file $DATA_PATH/dev3-2025/queries.jsonl --output_file output/dev3-gemini-2.5-flash-scored.jsonl --max_tokens 5000 --temperature 0.0
@@ -43,7 +42,7 @@ PROMPT_TEMPLATE_SINGLE = (
     "TOT Query: {query}"
 )
 
-def ask_llm(query, max_tokens, temperature, single_entity):
+def ask_llm(query, max_tokens, temperature, single_entity, exclude_response_format):
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
         "Content-Type": "application/json"
@@ -107,13 +106,17 @@ def ask_llm(query, max_tokens, temperature, single_entity):
             {"role": "user", "content": prompt_template.format(query=query)}
         ],
         "max_tokens": max_tokens,
-        "temperature": temperature,
-        "response_format": {
+        "temperature": temperature
+    }
+    
+    # Conditionally exclude response_format
+    if not exclude_response_format:
+        data["response_format"] = {
             "type": "json_schema",
             "strict": True,
             "json_schema": json_schema
         }
-    }
+    
     response = requests.post(API_URL, headers=headers, json=data)
     response.raise_for_status()
     data_out = response.json()
@@ -139,13 +142,18 @@ if __name__ == "__main__":
     parser.add_argument("--max_tokens", type=int, default=5000, help="Maximum tokens for LLM response (default: 5000)")
     parser.add_argument("--temperature", type=float, default=0.0, help="Temperature for LLM response (default: 0.7)")
     parser.add_argument("--single_entity", action="store_true", help="Ask for only the single best entity match instead of up to 20 entities")
+    parser.add_argument("--model", default=AVAILABLE_MODELS[0], help="Model to use for querying (default: first model in AVAILABLE_MODELS)")
+    parser.add_argument("--exclude_response_format", action="store_true", help="Exclude response_format from the request (default: off)")
     args = parser.parse_args()
     
+    MODEL = args.model
+
     # Print model parameters being used
     print(f"Using model: {MODEL}")
     print(f"Max tokens: {args.max_tokens}")
     print(f"Temperature: {args.temperature}")
     print(f"Single entity mode: {args.single_entity}")
+    print(f"Exclude response_format: {args.exclude_response_format}")
     print(f"Input file: {args.input_file}")
     print(f"Output file: {args.output_file}")
     print(f"Start line: {args.start_line}")
@@ -164,7 +172,7 @@ if __name__ == "__main__":
             query_id = item["query_id"]
             query = item["query"]
             try:
-                result = ask_llm(query, args.max_tokens, args.temperature, args.single_entity)
+                result = ask_llm(query, args.max_tokens, args.temperature, args.single_entity, args.exclude_response_format)
             except Exception as e:
                 result = {"error": str(e)}
             output = {
