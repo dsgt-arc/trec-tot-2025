@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH -Jrerank --account=paceship-dsgt_trec2025
 #SBATCH --nodes=1 --partition=gpu-l40s --gres=gpu:L40s
-#SBATCH -t12:00:00 -qinferno -ologs/rerank-v4-%j.out
+#SBATCH -t12:00:00 -qinferno -ologs/rerank-v5-%j.out
 #SBATCH --mail-type=START,END,FAIL --mail-user=acmiyaguchi@gatech.edu
 
 source $HOME/trec-tot-2025/.venv/bin/activate
@@ -28,15 +28,29 @@ output_path=$HOME/scratch/trec-tot-2025/results/rerank
 # qwen3:14b
 # google/gemma-3-12b-it
 # gaunernst/gemma-3-12b-it-qat-compressed-tensors
-MODEL=${MODEL:-"google/gemma-3-12b-it"}
+num_queries=${NUM_QUERIES:-100}
+batch_rank_end=${BATCH_RANK_END:-100}
+MODEL=${MODEL:-"gaunernst/gemma-3-27b-it-qat-compressed-tensors"}
 MODEL_SANITIZED=$(echo "$MODEL" | sed 's/[/:]/-/g')
 # $ ls $HOME/scratch/trec-tot-2025/data/gdrive/data/shared_retrieval_results
 # bge-passage-dense  gemini-2.5-flash  mini-o4  pyterrier-bm25
 RETRIEVAL_MODEL=${RETRIEVAL_MODEL:-"pyterrier-bm25"}
 DEVSET=${DEVSET:-"dev3"}
-OUTPUT_SUFFIX=v4-${RETRIEVAL_MODEL}-${DEVSET}-${MODEL_SANITIZED}-rerank
+OUTPUT_SUFFIX=v5-n${batch_rank_end}-${RETRIEVAL_MODEL}-${DEVSET}-${MODEL_SANITIZED}-rerank
 INPUT_PATH=$gdrive_path/shared_retrieval_results/$RETRIEVAL_MODEL/$DEVSET.run
-num_queries=${NUM_QUERIES:-100}
+
+# Simple flock-based semaphore to prevent duplicate jobs
+LOCK_DIR="$HOME/scratch/trec-tot-2025/locks"
+LOCK_FILE="$LOCK_DIR/${OUTPUT_SUFFIX}.lock"
+mkdir -p "$LOCK_DIR"
+
+# Use flock to prevent duplicate experiments
+exec 200>"$LOCK_FILE"
+if ! flock -n 200; then
+    echo "Another job is already running this experiment: $OUTPUT_SUFFIX"
+    echo "Exiting to avoid wasting GPU resources."
+    exit 0
+fi
 
 # check if rerank-results already exist and exit early
 if [ -f "$output_path/$OUTPUT_SUFFIX/rerank-results-reformatted.txt" ]; then
@@ -44,6 +58,7 @@ if [ -f "$output_path/$OUTPUT_SUFFIX/rerank-results-reformatted.txt" ]; then
 	exit 0
 fi
 
+# we run the benchmark just to make sure that the model has been downloaded locally
 vllm bench throughput \
     --model $MODEL \
     --input-len 32 \
@@ -62,7 +77,7 @@ wait_for_vllm() {
             | grep -q "200"; then
             echo "API ready"; return 0
         fi
-        [ $i -eq 30 ] && { echo "API timeout"; kill $vllm_pid; exit 1; }
+        [ $i -eq 50 ] && { echo "API timeout"; kill $vllm_pid; exit 1; }
         echo "Attempt $i/50..."; sleep 10
     done
 }
@@ -101,6 +116,7 @@ function run_trec_eval {
 	local run_file=$1
 	local qrel_file=$2
 	trec_eval \
+		-m recip_rank \
 		-m ndcg_cut.10,100,1000 \
 		-m recall.10,100,1000 \
         --complete_rel_info_wanted \

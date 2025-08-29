@@ -287,3 +287,25 @@ $ duckdb -c "
 │ 12B-QAT │ 0.04066302521008403 │ 6.6975630252100835 │  0.999752265889027 │           8 │
 └─────────┴─────────────────────┴────────────────────┴────────────────────┴─────────────┘
 ```
+
+## v5
+
+```bash
+for model in gaunernst/gemma-3-27b-it-qat-compressed-tensors; do
+    for retrieval in pyterrier-bm25; do
+        for n in $(seq 100 100 1000); do
+            echo sleep 10
+            echo MODEL=$model RETRIEVAL_MODEL=$retrieval DEVSET=dev3 BATCH_RANK_END=$n NUM_QUERIES=10 sbatch -J n$n-$model rerank.sbatch
+        done
+    done
+done
+```
+
+```
+for path in /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/results/rerank/v5*; do echo $path; done
+
+
+for path in $(ls -1 /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/results/rerank/v5*/*reformatted.txt | sort); do
+    grep -l $path logs/* 2>/dev/null | xargs ls -t | head -1 | xargs tail -n40
+done > v5.txt
+```
