@@ -219,7 +219,8 @@ def construct_rerank_requests(
     corpus_file: str,
     offset_file: str,
     num_queries: int = None,
-    document_mode: str = "full"
+    document_mode: str = "full",
+    start_query_index: int = 0
 ) -> List[Dict[str, Any]]:
     """Construct rerank requests from run file and related data.
     
@@ -228,6 +229,7 @@ def construct_rerank_requests(
             - "full": Full text truncated to 1500 characters (default)
             - "first_sentence": Only the first sentence of the text
             - "title_only": Only the document title, no text content
+        start_query_index: Start from this index in the query list (default: 0).
     """
     
     # Load all required data
@@ -248,8 +250,11 @@ def construct_rerank_requests(
     rerank_requests = []
 
     # Process all queries by default, or limit to specified number if provided
+    query_keys = list(query_docs.keys())
     if num_queries is not None:
-        partial_query_docs = {k: query_docs[k] for k in list(query_docs.keys())[:num_queries]}
+        partial_query_docs = {k: query_docs[k] for k in query_keys[start_query_index:start_query_index+num_queries]}
+    elif start_query_index > 0:
+        partial_query_docs = {k: query_docs[k] for k in query_keys[start_query_index:]}
     else:
         partial_query_docs = query_docs
 
@@ -386,6 +391,8 @@ def main():
                         help='Path to the prompt template YAML file (default: rank_llm/src/rank_llm/rerank/prompt_templates/rank_lrl_template.yaml)')
     parser.add_argument('--num-queries', type=int, default=None,
                         help='Number of queries to process for reranking (default: process all queries)')
+    parser.add_argument('--start-query-index', type=int, default=0,
+                        help='Start index for queries to process (default: 0)')
     parser.add_argument('--document-mode', type=str, default='full', 
                         choices=['full', 'first_sentence', 'first_paragraph', 'title_only'],
                         help='Document content mode: full (1500 chars), first_sentence (first sentence only), first_paragraph (first paragraph only), or title_only (title only) (default: full)')
@@ -425,7 +432,10 @@ def main():
 
     # Construct rerank requests
     print("Loading data and constructing rerank requests")
-    rerank_requests = construct_rerank_requests(run_file, queries_file, corpus_file, offset_file, args.num_queries, args.document_mode)
+    rerank_requests = construct_rerank_requests(
+        run_file, queries_file, corpus_file, offset_file, 
+        args.num_queries, args.document_mode, args.start_query_index
+    )
     print(f"Constructed {len(rerank_requests)} rerank requests using document mode: {args.document_mode}")
 
     # Perform batch reranking
