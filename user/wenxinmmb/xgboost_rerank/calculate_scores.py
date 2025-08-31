@@ -142,7 +142,7 @@ def parse_arguments():
     parser.add_argument("--bm25-index-path", required=True, help="Path to the PyTerrier BM25 index.")
     parser.add_argument("--output-dir", default="outputs/scores", help="Directory to save the output files. Default is 'outputs/scores'.")
     parser.add_argument("--no-reorder", action="store_true", help="Do not reorder results by score; use the original order.")
-    parser.add_argument("--start-query", type=int, default=1, help="Start processing from the kth query (1-based index). Default is 1.")
+    parser.add_argument("--start-query", type=int, default=0, help="Start processing from the kth query (0-based index). Default is 0.")
     parser.add_argument("--num-queries", type=int, default=None, help="Number of queries to process from the start-query. Default is all queries.")
     return parser.parse_args()
 
@@ -190,12 +190,12 @@ if __name__ == "__main__":
         end_query = start_query + args.num_queries - 1
     
     for idx, ((queryid, query_text), (trec_qid, docnos)) in enumerate(
-        tqdm(zip(iter_queries(queries_path), iter_trec_results(retrieval_path)), desc="Processing queries"), start=1
+        tqdm(zip(iter_queries(queries_path), iter_trec_results(retrieval_path)), desc="Processing queries"), start=0
     ):
         if idx < start_query:
             continue
 
-        if args.num_queries is not None and idx > end_query:
+        if args.num_queries is not None and idx >= start_query + args.num_queries:
             break
 
         assert queryid == trec_qid, f"Query ID mismatch: {queryid} != {trec_qid}"

@@ -147,25 +147,25 @@ def evaluate_model(model_path, qrel_path, baseline_run_path, output_dir):
     # Prepare results for JSON output
     results = {
         "Baseline Results": {
-            "NDCG": {k: avg_ndcg_baseline[k] for k in k_values},
-            "Recall": {k: avg_recall_baseline[k] for k in k_values}
+            "NDCG": {k: round(avg_ndcg_baseline[k], 2) for k in k_values},
+            "Recall": {k: round(avg_recall_baseline[k], 2) for k in k_values}
         },
         "Reranked Results": {
-            "NDCG": {k: avg_ndcg_reranked[k] for k in k_values},
-            "Recall": {k: avg_recall_reranked[k] for k in k_values}
+            "NDCG": {k: round(avg_ndcg_reranked[k], 2) for k in k_values},
+            "Recall": {k: round(avg_recall_reranked[k], 2) for k in k_values}
         },
         "Changes": {
             "NDCG": {
                 k: {
-                    "Absolute Change": avg_ndcg_reranked[k] - avg_ndcg_baseline[k],
-                    "Percentage Change": ((avg_ndcg_reranked[k] - avg_ndcg_baseline[k]) / avg_ndcg_baseline[k] * 100) if avg_ndcg_baseline[k] != 0 else 0
+                    "Absolute Change": round(avg_ndcg_reranked[k] - avg_ndcg_baseline[k], 2),
+                    "Percentage Change": round(((avg_ndcg_reranked[k] - avg_ndcg_baseline[k]) / avg_ndcg_baseline[k] * 100), 2) if avg_ndcg_baseline[k] != 0 else 0
                 }
                 for k in k_values
             },
             "Recall": {
                 k: {
-                    "Absolute Change": avg_recall_reranked[k] - avg_recall_baseline[k],
-                    "Percentage Change": ((avg_recall_reranked[k] - avg_recall_baseline[k]) / avg_recall_baseline[k] * 100) if avg_recall_baseline[k] != 0 else 0
+                    "Absolute Change": round(avg_recall_reranked[k] - avg_recall_baseline[k], 2),
+                    "Percentage Change": round(((avg_recall_reranked[k] - avg_recall_baseline[k]) / avg_recall_baseline[k] * 100), 2) if avg_recall_baseline[k] != 0 else 0
                 }
                 for k in k_values
             }

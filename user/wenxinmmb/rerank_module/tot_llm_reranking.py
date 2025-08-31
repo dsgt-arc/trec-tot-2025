@@ -89,7 +89,7 @@ def load_queries(queries_file: str) -> Dict[str, str]:
     with open(queries_file, 'r', encoding='utf-8') as f:
         for line in f:
             query_data = json.loads(line.strip())
-            queries[query_data['query_id']] = query_data['query']
+            queries[str(query_data['query_id'])] = query_data['query']
     return queries
 
 def load_corpus_offset(offset_file: str) -> Dict[str, Dict[str, int]]:
