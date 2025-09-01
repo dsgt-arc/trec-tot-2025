@@ -42,10 +42,10 @@ def load_pagerank_data():
 # Parse arguments
 parser = argparse.ArgumentParser(description="Feature extraction for RankLib training.")
 parser.add_argument("--input_file", type=str, required=True, help="Path to the input file (sample or retrieval).")
-parser.add_argument("--input_mode", type=str, choices=["sample", "retrieval"], required=True, help="Mode of input file: 'sample' or 'retrieval'.")
+parser.add_argument("--input_mode", type=str, choices=["sample", "retrieval", "sample-precomputed"], required=True, help="Mode of input file: 'sample', 'retrieval', or 'sample-precomputed'.")
 parser.add_argument("--dense_feature_file", type=str, required=True, help="Path to the dense feature file.")
 parser.add_argument("--sparse_feature_file", type=str, required=True, help="Path to the sparse feature file.")
-parser.add_argument("--query_file", type=str, required=True, help="Path to the query.jsonl file.")
+parser.add_argument("--query_files", type=str, nargs='+', required=True, help="Paths to one or more query.jsonl files.")
 parser.add_argument("--output_dir", type=str, required=True, help="Directory to save the output files.")
 args = parser.parse_args()
 
@@ -53,7 +53,7 @@ args = parser.parse_args()
 input_file = args.input_file
 dense_feature_file = args.dense_feature_file
 sparse_feature_file = args.sparse_feature_file
-query_file = args.query_file
+query_files = args.query_files
 output_dir = args.output_dir
 input_mode = args.input_mode
 
@@ -63,28 +63,30 @@ info_file = os.path.join(output_dir, "info.json")
 # Ensure output directory exists
 os.makedirs(output_dir, exist_ok=True)
 
-# Load queries
+# Load queries from multiple files
 queries = {}
-with open(query_file, "r") as f:
-    for line in f:
-        query_data = json.loads(line.strip())
-        queries[query_data["query_id"]] = query_data["query"]
+for qfile in query_files:
+    with open(qfile, "r") as f:
+        for line in f:
+            query_data = json.loads(line.strip())
+            word_count = len(query_data["query"].split())
+            queries[query_data["query_id"]] = word_count
 
-# Load dense scores
+# Load dense scores (skip if sample-precomputed)
 dense_scores = {}
-with open(dense_feature_file, "r") as f:
-    for line in f:
-        parts = line.strip().split()
-        qid, doc_id, score = parts[0], parts[2], float(parts[4])
-        dense_scores[(qid, doc_id)] = score
-
-# Load sparse scores
 sparse_scores = {}
-with open(sparse_feature_file, "r") as f:
-    for line in f:
-        parts = line.strip().split()
-        qid, doc_id, score = parts[0], parts[2], float(parts[4])
-        sparse_scores[(qid, doc_id)] = score
+if input_mode != "sample-precomputed":
+    with open(dense_feature_file, "r") as f:
+        for line in f:
+            parts = line.strip().split()
+            qid, doc_id, score = parts[0], parts[2], float(parts[4])
+            dense_scores[(qid, doc_id)] = score
+
+    with open(sparse_feature_file, "r") as f:
+        for line in f:
+            parts = line.strip().split()
+            qid, doc_id, score = parts[0], parts[2], float(parts[4])
+            sparse_scores[(qid, doc_id)] = score
 
 # Load pageview and pagerank data
 pageview_data = load_pageview_data()
@@ -97,37 +99,38 @@ with open(input_file, "r") as f_in, open(features_file, "w") as f_out:
         parts = line.strip().split()
         if input_mode == "sample":
             relevance, qid, doc_id = parts[0], parts[1][len('qid:'):], parts[2][len('doc:'):]
+            dense_score = dense_scores[(qid, doc_id)]
+            sparse_score = sparse_scores[(qid, doc_id)]
         elif input_mode == "retrieval":
             relevance = 0  # Dummy relevance for retrieval mode
             qid, doc_id = parts[0], parts[2]
-        
-        # Calculate query word count
-        query = queries[qid]
-        query_word_count = len(query.split())  # Split query by spaces to count words
-        
+            dense_score = dense_scores[(qid, doc_id)]
+            sparse_score = sparse_scores[(qid, doc_id)]
+        elif input_mode == "sample-precomputed":
+            relevance, qid, doc_id = parts[0], parts[1][len('qid:'):], parts[2][len('doc:'):]
+            dense_score = float(parts[3][len('dense_score:'):])
+            sparse_score = float(parts[4][len('sparse_score:'):])
+
         # Normalize query word count
+        query_word_count = queries[qid]
         normalized_query_word_count = (query_word_count - QUERY_WORD_COUNT_MIN) / (QUERY_WORD_COUNT_MAX - QUERY_WORD_COUNT_MIN)
         normalized_query_word_count = max(0, min(1, normalized_query_word_count))  # Clamp to [0, 1]
-        
-        # Get dense and sparse scores
-        dense_score = dense_scores[(qid, doc_id)]
-        sparse_score = sparse_scores[(qid, doc_id)]
-        
+
         # Normalize sparse score
         normalized_sparse_score = (sparse_score - SPARSE_SCORE_MIN) / (SPARSE_SCORE_MAX - SPARSE_SCORE_MIN)
         normalized_sparse_score = max(0, min(1, normalized_sparse_score))  # Clamp to [0, 1]
-        
+
         # Get pageview and pagerank
         pageview = pageview_data.get(doc_id, 0)
         pagerank = pagerank_data.get(doc_id, 0.0)
-        
+
         # Append features to stats
         feature_stats["dense"].append(dense_score)
         feature_stats["sparse"].append(normalized_sparse_score)
         feature_stats["query_word_count"].append(normalized_query_word_count)
         feature_stats["pageview"].append(pageview)
         feature_stats["pagerank"].append(pagerank)
-        
+
         # Write features to file
         f_out.write(f"{relevance} qid:{qid} 1:{dense_score} 2:{normalized_sparse_score} 3:{normalized_query_word_count} 4:{pageview} 5:{pagerank} # {doc_id}\n")
 

@@ -221,12 +221,12 @@ if __name__ == "__main__":
     ]
 
     load_dense_scores(dense_score_location)
-    output_dir = "outputs/sample-v3"
+    output_dir = "outputs/sample-v4"
     # create the directory if not exist
     os.makedirs(output_dir, exist_ok=True)
 
     # change to range(3) once sparse score path is ready
-    for i in range(2):
+    for i in range(3):
         create_training_samples(
             qrel_locations[i],
             dense_retrieval_paths[i],

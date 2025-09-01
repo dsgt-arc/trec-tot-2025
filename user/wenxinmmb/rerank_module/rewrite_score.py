@@ -62,7 +62,7 @@ def reformat_trec_file(input_file, output_file):
             query_row_count += 1
 
             # Write tab-separated output
-            output_line = f"{query_id}\t{q0}\t{doc_id}\t{rank}\t{new_score}\t{run_name}"
+            output_line = f"{query_id} {q0} {doc_id} {rank} {new_score} {run_name}"
             outfile.write(output_line + "\n")
 
 def main():
