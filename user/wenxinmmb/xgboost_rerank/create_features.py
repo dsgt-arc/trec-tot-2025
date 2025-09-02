@@ -42,7 +42,7 @@ def load_pagerank_data():
 # Parse arguments
 parser = argparse.ArgumentParser(description="Feature extraction for RankLib training.")
 parser.add_argument("--input_file", type=str, required=True, help="Path to the input file (sample or retrieval).")
-parser.add_argument("--input_mode", type=str, choices=["sample", "retrieval", "sample-precomputed"], required=True, help="Mode of input file: 'sample', 'retrieval', or 'sample-precomputed'.")
+parser.add_argument("--input_mode", type=str, choices=["sample", "retrieval", "sample-precomputed", "retrieval-dense-tsv"], required=True, help="Mode of input file: 'sample', 'retrieval', 'sample-precomputed', or 'retrieval-dense-tsv'.")
 parser.add_argument("--dense_feature_file", type=str, required=True, help="Path to the dense feature file.")
 parser.add_argument("--sparse_feature_file", type=str, required=True, help="Path to the sparse feature file.")
 parser.add_argument("--query_files", type=str, nargs='+', required=True, help="Paths to one or more query.jsonl files.")
@@ -76,11 +76,20 @@ for qfile in query_files:
 dense_scores = {}
 sparse_scores = {}
 if input_mode != "sample-precomputed":
-    with open(dense_feature_file, "r") as f:
-        for line in f:
-            parts = line.strip().split()
-            qid, doc_id, score = parts[0], parts[2], float(parts[4])
-            dense_scores[(qid, doc_id)] = score
+    if input_mode == "retrieval-dense-tsv":
+        with open(dense_feature_file, "r") as f:
+            for line in f:
+                parts = line.strip().split('\t')
+                if len(parts) != 3:
+                    continue
+                doc_id, qid, score = parts[0], parts[1], float(parts[2])
+                dense_scores[(qid, doc_id)] = score
+    else:
+        with open(dense_feature_file, "r") as f:
+            for line in f:
+                parts = line.strip().split()
+                qid, doc_id, score = parts[0], parts[2], float(parts[4])
+                dense_scores[(qid, doc_id)] = score
 
     with open(sparse_feature_file, "r") as f:
         for line in f:
@@ -101,10 +110,13 @@ with open(input_file, "r") as f_in, open(features_file, "w") as f_out:
             relevance, qid, doc_id = parts[0], parts[1][len('qid:'):], parts[2][len('doc:'):]
             dense_score = dense_scores[(qid, doc_id)]
             sparse_score = sparse_scores[(qid, doc_id)]
-        elif input_mode == "retrieval":
+        elif input_mode == "retrieval" or input_mode == "retrieval-dense-tsv":
             relevance = 0  # Dummy relevance for retrieval mode
             qid, doc_id = parts[0], parts[2]
-            dense_score = dense_scores[(qid, doc_id)]
+            if input_mode == "retrieval-dense-tsv":
+                dense_score = dense_scores.get((qid, doc_id), 0.0) # dense score may not exist for some article as we use upstash embeddings, which doesn't perfected match with the tot corpus
+            else:
+                dense_score = dense_scores[(qid, doc_id)]
             sparse_score = sparse_scores[(qid, doc_id)]
         elif input_mode == "sample-precomputed":
             relevance, qid, doc_id = parts[0], parts[1][len('qid:'):], parts[2][len('doc:'):]

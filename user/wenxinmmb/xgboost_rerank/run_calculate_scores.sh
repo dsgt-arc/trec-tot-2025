@@ -41,39 +41,38 @@
 #     --no-reorder
 # done
 
-# split=train
-# for split in train dev2; do
-#   for start_query1 in 0 100; do
-#     python calculate_scores.py \
-#       --mode pt \
-#       --retrieval-path $DATA_PATH/results/$split/bge-filtered.txt \
-#       --queries-path $DATA_PATH/2025/$split-2025/queries.jsonl \
-#       --corpus-path $DATA_PATH/2025/corpus.jsonl \
-#       --offset-path $DATA_PATH/2025/corpus-offset-mapping.json \
-#       --bm25-index-path /home/wenxin/project/pyterrrier-index/trec-tot-2025-pyterrier-index \
-#       --output-dir outputs/scores/$split-bge \
-#       --start-query $start_query1 \
-#       --num-queries 100 \
-#       --no-reorder
-#   done
-# done
-
-splitname=llmset1-train
-
-for start_query2 in $(seq 0 100 4100); do
-  echo "Processing start query: $start_query2"
-  python calculate_scores.py \
-    --mode pt \
-    --retrieval-path $DATA_PATH/results/$splitname/bge-filtered.txt \
-    --queries-path $DATA_PATH/2025/generated-queries/llm-set1/train/queries.jsonl \
-    --corpus-path $DATA_PATH/2025/corpus.jsonl \
-    --offset-path $DATA_PATH/2025/corpus-offset-mapping.json \
-    --bm25-index-path /home/wenxin/project/pyterrrier-index/trec-tot-2025-pyterrier-index \
-    --output-dir outputs/scores/$splitname-bge \
-    --start-query $start_query2 \
-    --num-queries 100 \
-    --no-reorder
+for split in dev2; do
+  for start_query1 in 0 100; do
+    python calculate_scores.py \
+      --mode pt \
+      --retrieval-path $DATA_PATH/results/$split/bge-filtered.txt \
+      --queries-path $DATA_PATH/2025/$split-2025/queries.jsonl \
+      --corpus-path $DATA_PATH/2025/corpus.jsonl \
+      --offset-path $DATA_PATH/2025/corpus-offset-mapping.json \
+      --bm25-index-path /home/wenxin/project/pyterrrier-index/trec-tot-2025-pyterrier-index \
+      --output-dir outputs/scores/$split-bge \
+      --start-query $start_query1 \
+      --num-queries 100 \
+      --no-reorder
+  done
 done
+
+# splitname=llmset1-train
+
+# for start_query2 in $(seq 0 100 4100); do
+#   echo "Processing start query: $start_query2"
+#   python calculate_scores.py \
+#     --mode pt \
+#     --retrieval-path $DATA_PATH/results/$splitname/bge-filtered.txt \
+#     --queries-path $DATA_PATH/2025/generated-queries/llm-set1/train/queries.jsonl \
+#     --corpus-path $DATA_PATH/2025/corpus.jsonl \
+#     --offset-path $DATA_PATH/2025/corpus-offset-mapping.json \
+#     --bm25-index-path /home/wenxin/project/pyterrrier-index/trec-tot-2025-pyterrier-index \
+#     --output-dir outputs/scores/$splitname-bge \
+#     --start-query $start_query2 \
+#     --num-queries 100 \
+#     --no-reorder
+# done
 
 # Calculate qrel pt bm25 scores
 # for split in train dev1 dev2 dev3 llmset1-train llmset1-dev llmset1-test; do

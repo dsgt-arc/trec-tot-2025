@@ -215,9 +215,9 @@ if __name__ == "__main__":
     ]
 
     sparse_score_paths = [
-        f"outputs/scores/train-bge/bge-filtered--md-pt.txt", # TODO: Pending
+        f"outputs/scores/train-bge/bge-filtered--md-pt.txt",
         f"outputs/scores/dev3-bge/bge-filtered--md-pt.txt",
-        f"outputs/scores/llmset1-train-bge/bge-filtered--md-pt.txt" # TODO: Pending
+        f"outputs/scores/llmset1-train-bge/bge-filtered--md-pt.txt"
     ]
 
     load_dense_scores(dense_score_location)

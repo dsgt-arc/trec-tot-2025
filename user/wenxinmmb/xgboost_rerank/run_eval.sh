@@ -1,33 +1,49 @@
+# ===========================
 # For sparse retrieval
-# python create_features.py \
-#   --input_file $DATA_PATH/results/dev1/bm25.txt \
-#   --input_mode retrieval \
-#   --dense_feature_file outputs/scores/dev1-bm25/bm25--md-bge-dense.txt \
-#   --sparse_feature_file $DATA_PATH/results/dev1/bm25.txt \
-#   --query_file $DATA_PATH/2025/dev1-2025/queries.jsonl \
-#   --output_dir outputs/scores/dev1-bm25/v2
+# ===========================
 
+for version in v4 v5 v6; do
+  for splitname in train dev1 dev2 dev3 llmset1-train llmset1-dev; do
 
-# python evaluate_lamdamart.py \
-#     --model_path outputs/sample-v1/feat-v2/lambdamart_model.json \
-#     --baseline_run_path $DATA_PATH/results/dev1/bm25.txt \
-#     --dir outputs/scores/dev1-bm25/v2 \
-#     --qrel_path $DATA_PATH/2025/dev1-2025/qrel.txt
+    python create_features.py \
+      --input_file $DATA_PATH/results/$splitname/bm25.txt \
+      --input_mode retrieval-dense-tsv \
+      --dense_feature_file ${TOT}/baseline2024/dense/outputs/dense_score/all-sets.tsv \
+      --sparse_feature_file $DATA_PATH/results/$splitname/bm25.txt \
+      --query_file $DATA_PATH/2025/$splitname-2025/queries.jsonl \
+      --output_dir outputs/scores/$splitname-bm25/$version
 
+    python evaluate_lamdamart.py \
+        --model_path outputs/sample-$version/lambdamart_model.json \
+        --baseline_run_path $DATA_PATH/results/$splitname/bm25.txt \
+        --dir outputs/scores/$splitname-bm25/$version \
+        --qrel_path $DATA_PATH/2025/$splitname-2025/qrel.txt
+  done
+done
+
+# ===========================
 # For dense retrieval
-# splitname=dev3
-splitname=llmset1-dev
-python create_features.py \
-  --input_file $DATA_PATH/results/$splitname/bge-filtered.txt \
-  --input_mode retrieval \
-  --dense_feature_file $DATA_PATH/results/$splitname/bge-filtered.txt \
-  --sparse_feature_file outputs/scores/$splitname-bge/bge-filtered--md-pt.txt \
-  --query_file $DATA_PATH/2025/$splitname-2025/queries.jsonl \
-  --output_dir outputs/scores/$splitname-bge/v2
+# ===========================
+for version in v4 v5 v6; do
+  for splitname in train dev1 dev2 dev3 llmset1-train llmset1-dev; do
+    echo "Processing split: $splitname, version: $version"
 
+    python create_features.py \
+      --input_file $DATA_PATH/results/$splitname/bge-filtered.txt \
+      --input_mode retrieval \
+      --dense_feature_file $DATA_PATH/results/$splitname/bge-filtered.txt \
+      --sparse_feature_file outputs/scores/$splitname-bge/bge-filtered--md-pt.txt \
+      --query_file $DATA_PATH/2025/$splitname-2025/queries.jsonl \
+      --output_dir outputs/scores/$splitname-bge/$version
 
-python evaluate_lamdamart.py \
-    --model_path outputs/sample-v1/feat-v2/lambdamart_model.json \
-    --baseline_run_path $DATA_PATH/results/$splitname/bge-filtered.txt \
-    --dir outputs/scores/$splitname-bge/v2 \
-    --qrel_path $DATA_PATH/2025/$splitname-2025/qrel.txt
+    # mkdir -p outputs/scores/$splitname-bge/$version
+    # cp outputs/scores/$splitname-bge/v4/features.txt outputs/scores/$splitname-bge/$version
+    # cp outputs/scores/$splitname-bge/v4/info.json outputs/scores/$splitname-bge/$version
+
+    python evaluate_lamdamart.py \
+        --model_path outputs/sample-$version/lambdamart_model.json \
+        --baseline_run_path $DATA_PATH/results/$splitname/bge-filtered.txt \
+        --dir outputs/scores/$splitname-bge/$version \
+        --qrel_path $DATA_PATH/2025/$splitname-2025/qrel.txt
+  done
+done
