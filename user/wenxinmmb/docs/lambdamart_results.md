@@ -2,64 +2,6 @@
 
 This document presents the results of training a LambdaMART model for reranking documents in the TREC ToT 2025 task.
 
-## |     1000 |            0.13 | 0.2000 (47.54%) | 0.1900 (43.05%) | 0.1800 (38.23%) |              0.48 | 0.4800 (0.00%)  | 0.4800 (0.00%)  | 0.4800 (0.00%)  |
-
-## Results Analysis
-
-### Model Performance Comparison
-
-**Overall Best Model: v6** consistently shows the strongest performance across training datasets, with the highest improvements in most scenarios.
-
-**Performance by Model Version:**
-
-- **v4**: Solid baseline improvements but generally the most conservative gains
-- **v5**: Moderate improvements, often falling between v4 and v6
-- **v6**: Consistently highest performance gains, especially on training sets
-
-### Overfitting Analysis
-
-**Evidence of Overfitting:**
-
-1. **Training vs. Validation Performance Gap**: 
-   - Training sets show dramatic improvements (e.g., train|bm25: 94% improvement at @10 for v6)
-   - Validation sets (dev1, dev2) show much smaller gains or even negative performance
-   - This large gap indicates the model is memorizing training patterns rather than generalizing
-
-2. **Performance Degradation on Unseen Data**:
-   - Dev1|BM25: v6 shows negative performance (-14% at @10)
-   - Dev2|BM25: v6 shows declining performance compared to v4 and v5
-   - LLMSet1-dev shows consistent degradation from v4 → v5 → v6
-
-3. **Hyperparameter Complexity**:
-   - v6 uses more complex parameters (max_depth=8, gamma=0.5) which can lead to overfitting
-   - v5 with simpler, more regularized parameters shows better generalization
-
-### Training Set Expectations
-
-**Expected High Performance on Training Sets:**
-- Models are trained on portions of these datasets (train, dev3 first 200, llmset1-train)
-- High improvements are expected and normal (50-175% improvements observed)
-- These results validate that the model is learning the training signal effectively
-
-**Concerning Patterns:**
-- The extremely high improvements (>100%) suggest potential overfitting
-- Real-world performance should be evaluated on completely held-out test sets
-
-### Recommendations
-
-1. **Use v5 for Production**: Shows better balance between training performance and generalization
-2. **Implement Regularization**: Add early stopping, reduce max_depth, increase min_child_weight
-3. **Cross-Validation**: Use proper k-fold validation to get more reliable performance estimates
-4. **Feature Selection**: Consider feature importance analysis to reduce overfitting
-5. **More Training Data**: Increase training set size to improve generalization
-
-### Key Insights
-
-- **Dense vs. Sparse**: BGE dense retrieval generally shows larger improvements than BM25
-- **Cutoff Effects**: Improvements are most pronounced at lower cutoffs (@10, @100)
-- **Dataset Dependency**: Performance varies significantly across different query sets
-- **Hyperparameter Sensitivity**: Small parameter changes lead to significant performance differencesverview
-
 This project trains a LambdaMART model for reranking retrieved documents. The model leverages multiple features including dense retrieval scores, sparse retrieval scores, query characteristics, and document popularity metrics to improve ranking performance.
 
 ## Sampling Strategy
@@ -213,4 +155,60 @@ The following tables show the performance comparison between baseline and the th
 |---------:|----------------:|:----------------|:----------------|:----------------|------------------:|:----------------|:----------------|:----------------|
 |       10 |            0.08 | 0.1500 (93.62%) | 0.1400 (83.99%) | 0.1300 (75.44%) |              0.12 | 0.2100 (77.89%) | 0.2000 (72.63%) | 0.2000 (69.47%) |
 |      100 |            0.11 | 0.1800 (69.38%) | 0.1800 (64.17%) | 0.1700 (57.37%) |              0.27 | 0.3800 (38.36%) | 0.3800 (39.27%) | 0.3700 (36.53%) |
-|     1000 |            0.13 | 0.2000 (47.54%) | 0.1900 (43.05%) | 0.1800 (38.23%) |              0.48 | 0.4800 (0.00%)  | 0.4800 (0.00%)  | 0.4800 (0.00%)  
+|     1000 |            0.13 | 0.2000 (47.54%) | 0.1900 (43.05%) | 0.1800 (38.23%) |              0.48 | 0.4800 (0.00%)  | 0.4800 (0.00%)  | 0.4800 (0.00%)  |
+
+## Results Analysis
+
+### Model Performance Comparison
+
+**Overall Best Model: v6** consistently shows the strongest performance across training datasets, with the highest improvements in most scenarios.
+
+**Performance by Model Version:**
+
+- **v4**: Solid baseline improvements but generally the most conservative gains
+- **v5**: Moderate improvements, often falling between v4 and v6
+- **v6**: Consistently highest performance gains, especially on training sets
+
+### Overfitting Analysis
+
+**Evidence of Overfitting:**
+
+1. **Training vs. Validation Performance Gap**: 
+   - Training sets show dramatic improvements (e.g., train|bm25: 94% improvement at @10 for v6)
+   - Validation sets (dev1, dev2) show much smaller gains or even negative performance
+   - This large gap indicates the model is memorizing training patterns rather than generalizing
+
+2. **Performance Degradation on Unseen Data**:
+   - Dev1|BM25: v6 shows negative performance (-14% at @10)
+   - Dev2|BM25: v6 shows declining performance compared to v4 and v5
+   - LLMSet1-dev shows consistent degradation from v4 → v5 → v6
+
+3. **Hyperparameter Complexity**:
+   - v6 uses more complex parameters (max_depth=8, gamma=0.5) which can lead to overfitting
+   - v5 with simpler, more regularized parameters shows better generalization
+
+### Training Set Expectations
+
+**Expected High Performance on Training Sets:**
+- Models are trained on portions of these datasets (train, dev3 first 200, llmset1-train)
+- High improvements are expected and normal (50-175% improvements observed)
+- These results validate that the model is learning the training signal effectively
+
+**Concerning Patterns:**
+- The extremely high improvements (>100%) suggest potential overfitting
+- Real-world performance should be evaluated on completely held-out test sets
+
+### Recommendations
+
+1. **Use v5 for Production**: Shows better balance between training performance and generalization
+2. **Implement Regularization**: Add early stopping, reduce max_depth, increase min_child_weight
+3. **Cross-Validation**: Use proper k-fold validation to get more reliable performance estimates
+4. **Feature Selection**: Consider feature importance analysis to reduce overfitting
+5. **More Training Data**: Increase training set size to improve generalization
+
+### Key Insights
+
+- **Dense vs. Sparse**: BGE dense retrieval generally shows larger improvements than BM25
+- **Cutoff Effects**: Improvements are most pronounced at lower cutoffs (@10, @100)
+- **Dataset Dependency**: Performance varies significantly across different query sets
+- **Hyperparameter Sensitivity**: Small parameter changes lead to significant performance differencesverview
