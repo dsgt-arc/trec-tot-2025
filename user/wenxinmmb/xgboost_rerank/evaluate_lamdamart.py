@@ -18,7 +18,7 @@ def load_qrel(qrel_path):
             qrel[qid][doc_id] = relevance
     return qrel
 
-def load_dataset(file_path, qrel):
+def load_dataset(file_path, qrel=None):
     """Load dataset in LambdaMART format."""
     queries = []
     features = []
@@ -37,10 +37,13 @@ def load_dataset(file_path, qrel):
             features.append(feature_vector)
             doc_ids.append(doc_id)
             
-            # Get the label from the QREL file
-            qid = int(main_parts[1].split(':')[1])
-            label = qrel[qid].get(doc_id, 0)  # Default to 0 if not in QREL
-            labels.append(label)
+            # Get the label from the QREL file (skip if qrel is None)
+            if qrel is not None:
+                qid = int(main_parts[1].split(':')[1])
+                label = qrel[qid].get(doc_id, 0)  # Default to 0 if not in QREL
+                labels.append(label)
+            else:
+                labels.append(0)  # Default label when skipping evaluation
     
     return np.array(labels), np.array(queries), np.array(features), doc_ids
 
@@ -90,6 +93,33 @@ def compute_metrics(labels, predictions, queries, k_values):
     avg_ndcg = {k: np.mean(ndcg_scores[k]) for k in k_values}
     avg_recall = {k: np.mean(recall_scores[k]) for k in k_values}
     return avg_ndcg, avg_recall
+
+def generate_rerank_results_only(model_path, output_dir):
+    """Generate reranking results without evaluation."""
+    dataset_path = os.path.join(output_dir, "features.txt")
+    labels, queries, features, doc_ids = load_dataset(dataset_path, qrel=None)
+    
+    # Load the trained model
+    model = xgb.Booster()
+    model.load_model(model_path)
+    
+    # Predict scores
+    dtest = xgb.DMatrix(features)
+    predictions = model.predict(dtest)
+    
+    # Group predictions by query
+    reranked_results = defaultdict(list)
+    for qid, doc_id, score in zip(queries, doc_ids, predictions):
+        reranked_results[qid].append((doc_id, score))
+    
+    # Sort results by score
+    for qid in reranked_results:
+        reranked_results[qid].sort(key=lambda x: x[1], reverse=True)
+    
+    # Save reranked results in TREC format
+    rerank_results_path = os.path.join(output_dir, f"rerank-results.txt")
+    save_trec_format(rerank_results_path, reranked_results)
+    print(f"Rerank results saved to {rerank_results_path}")
 
 def evaluate_model(model_path, qrel_path, baseline_run_path, output_dir):
     """Evaluate LambdaMART model and compare metrics."""
@@ -181,9 +211,18 @@ def evaluate_model(model_path, qrel_path, baseline_run_path, output_dir):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Evaluate LambdaMART model and compare metrics.")
     parser.add_argument("--model_path", type=str, required=True, help="Path to the LambdaMART model.")
-    parser.add_argument("--qrel_path", type=str, required=True, help="Path to the QREL file.")
-    parser.add_argument("--baseline_run_path", type=str, required=True, help="Path to the baseline retrieval results.")
+    parser.add_argument("--qrel_path", type=str, help="Path to the QREL file.")
+    parser.add_argument("--baseline_run_path", type=str, help="Path to the baseline retrieval results.")
     parser.add_argument("--dir", type=str, required=True, help="Directory to look up dataset and save the results.")
+    parser.add_argument("--skip_eval", action="store_true", help="Skip evaluation and only generate reranking results.")
     
     args = parser.parse_args()
-    evaluate_model(args.model_path, args.qrel_path, args.baseline_run_path, args.dir)
+    
+    if args.skip_eval:
+        # Generate reranking results without evaluation
+        generate_rerank_results_only(args.model_path, args.dir)
+    else:
+        # Require qrel_path and baseline_run_path for evaluation
+        if not args.qrel_path or not args.baseline_run_path:
+            parser.error("--qrel_path and --baseline_run_path are required when not using --skip_eval")
+        evaluate_model(args.model_path, args.qrel_path, args.baseline_run_path, args.dir)

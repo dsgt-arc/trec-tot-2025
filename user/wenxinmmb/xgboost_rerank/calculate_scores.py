@@ -189,48 +189,116 @@ if __name__ == "__main__":
     if args.num_queries is not None:
         end_query = start_query + args.num_queries - 1
     
-    for idx, ((queryid, query_text), (trec_qid, docnos)) in enumerate(
-        tqdm(zip(iter_queries(queries_path), iter_trec_results(retrieval_path)), desc="Processing queries"), start=0
-    ):
-        if idx < start_query:
-            continue
+    query_iter = iter_queries(queries_path)
+    trec_iter = iter_trec_results(retrieval_path)
+    
+    try:
+        queryid, query_text = next(query_iter)
+        trec_qid, docnos = next(trec_iter)
+    except StopIteration:
+        print("No queries or retrieval results to process.")
+        exit(0)
+    
+    idx = 0  # Position in the query sequence (0-based)
+    processed_queries = 0  # Number of queries examined from start_query onwards
+    
+    with tqdm(desc="Processing queries") as pbar:
+        while True:
+            # Skip queries that don't have retrieval results
+            while queryid < trec_qid:
+                print(f"Warning: No retrieval results found for query {queryid}, skipping...")
+                try:
+                    queryid, query_text = next(query_iter)
+                except StopIteration:
+                    print("Finished processing all queries.")
+                    break
+                idx += 1
+                # Increment processed_queries if we're at or past start_query
+                if idx > start_query:
+                    processed_queries += 1
+            
+            # Check if we're done
+            if queryid < trec_qid:
+                break
+                
+            # Skip queries before start_query
+            if idx < start_query:
+                try:
+                    queryid, query_text = next(query_iter)
+                    trec_qid, docnos = next(trec_iter)
+                except StopIteration:
+                    break
+                idx += 1
+                continue
 
-        if args.num_queries is not None and idx >= start_query + args.num_queries:
-            break
+            # Increment processed_queries for queries at or after start_query
+            processed_queries += 1
 
-        assert queryid == trec_qid, f"Query ID mismatch: {queryid} != {trec_qid}"
-        assert len(docnos) > 0, f"No document IDs found for query ID: {queryid}"
-        docno_to_text = get_doc_texts(docnos, offset_mapping, corpus_path)
-        docs = [
-            {"docno": docno, "text": docno_to_text.get(docno)}
-            for docno in docnos if docno_to_text.get(docno)
-        ]
-        if not docs:
-            continue
-        query_docs_dict = {queryid: {"query": query_text, "docs": docs}}
-        scores = score_query_docs(query_docs_dict, textscorer, tokeniser, args.mode, model)
+            # Check if we've processed enough queries
+            if args.num_queries is not None and processed_queries > args.num_queries:
+                break
 
-        if args.mode == "bge":
-            if not args.no_reorder:
-                docs_sorted = sorted(scores[queryid], key=lambda x: x["dense_score"], reverse=True)
-            else:
-                docs_sorted = scores[queryid]
-            for rank, doc in enumerate(docs_sorted):
-                f_dense.write(f"{queryid} Q0 {doc['docno']} {rank+1} {doc['dense_score']} {args.mode}-dense\n")
+            # Ensure queryid <= trec_qid invariant holds
+            assert queryid <= trec_qid, f"Query ID invariant violated: {queryid} > {trec_qid}"
+            
+            if queryid == trec_qid:
+                assert len(docnos) > 0, f"No document IDs found for query ID: {queryid}"
+                docno_to_text = get_doc_texts(docnos, offset_mapping, corpus_path)
+                docs = [
+                    {"docno": docno, "text": docno_to_text.get(docno)}
+                    for docno in docnos if docno_to_text.get(docno)
+                ]
+                if not docs:
+                    # Move to next query and trec result
+                    try:
+                        queryid, query_text = next(query_iter)
+                        trec_qid, docnos = next(trec_iter)
+                    except StopIteration:
+                        break
+                    idx += 1
+                    continue
+                
+                query_docs_dict = {queryid: {"query": query_text, "docs": docs}}
+                scores = score_query_docs(query_docs_dict, textscorer, tokeniser, args.mode, model)
 
-            if not args.no_reorder:
-                docs_sorted = sorted(scores[queryid], key=lambda x: x["sparse_score"], reverse=True)
-            else:
-                docs_sorted = scores[queryid]
-            for rank, doc in enumerate(docs_sorted):
-                f_sparse.write(f"{queryid} Q0 {doc['docno']} {rank+1} {doc['sparse_score']} {args.mode}-sparse\n")
+                if args.mode == "bge":
+                    if not args.no_reorder:
+                        docs_sorted = sorted(scores[queryid], key=lambda x: x["dense_score"], reverse=True)
+                    else:
+                        docs_sorted = scores[queryid]
+                    for rank, doc in enumerate(docs_sorted):
+                        f_dense.write(f"{queryid} Q0 {doc['docno']} {rank+1} {doc['dense_score']} {args.mode}-dense\n")
 
-        else:
-            if not args.no_reorder:
-                docs_sorted = sorted(scores[queryid], key=lambda x: x["score"], reverse=True)
-            else:
-                docs_sorted = scores[queryid]
-            for rank, doc in enumerate(docs_sorted):
-                score = doc.get("score", 0)
-                f.write(f"{queryid} Q0 {doc['docno']} {rank+1} {score} {args.mode}\n")
+                    if not args.no_reorder:
+                        docs_sorted = sorted(scores[queryid], key=lambda x: x["sparse_score"], reverse=True)
+                    else:
+                        docs_sorted = scores[queryid]
+                    for rank, doc in enumerate(docs_sorted):
+                        f_sparse.write(f"{queryid} Q0 {doc['docno']} {rank+1} {doc['sparse_score']} {args.mode}-sparse\n")
+
+                else:
+                    if not args.no_reorder:
+                        docs_sorted = sorted(scores[queryid], key=lambda x: x["score"], reverse=True)
+                    else:
+                        docs_sorted = scores[queryid]
+                    for rank, doc in enumerate(docs_sorted):
+                        score = doc.get("score", 0)
+                        f.write(f"{queryid} Q0 {doc['docno']} {rank+1} {score} {args.mode}\n")
+                
+                pbar.update(1)
+            
+            # Move to next query and trec result
+            try:
+                queryid, query_text = next(query_iter)
+                trec_qid, docnos = next(trec_iter)
+            except StopIteration:
+                break
+            idx += 1
+
+    # Close files
+    if args.mode == "bge":
+        f_dense.close()
+        f_sparse.close()
+    else:
+        f.close()
 

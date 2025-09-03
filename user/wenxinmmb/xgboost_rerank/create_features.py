@@ -70,7 +70,7 @@ for qfile in query_files:
         for line in f:
             query_data = json.loads(line.strip())
             word_count = len(query_data["query"].split())
-            queries[query_data["query_id"]] = word_count
+            queries[str(query_data["query_id"])] = word_count
 
 # Load dense scores (skip if sample-precomputed)
 dense_scores = {}

@@ -10,7 +10,7 @@ for version in v4 v5 v6; do
       --input_mode retrieval-dense-tsv \
       --dense_feature_file ${TOT}/baseline2024/dense/outputs/dense_score/all-sets.tsv \
       --sparse_feature_file $DATA_PATH/results/$splitname/bm25.txt \
-      --query_file $DATA_PATH/2025/$splitname-2025/queries.jsonl \
+      --query_files $DATA_PATH/2025/$splitname-2025/queries.jsonl \
       --output_dir outputs/scores/$splitname-bm25/$version
 
     python evaluate_lamdamart.py \
@@ -33,7 +33,7 @@ for version in v4 v5 v6; do
       --input_mode retrieval \
       --dense_feature_file $DATA_PATH/results/$splitname/bge-filtered.txt \
       --sparse_feature_file outputs/scores/$splitname-bge/bge-filtered--md-pt.txt \
-      --query_file $DATA_PATH/2025/$splitname-2025/queries.jsonl \
+      --query_files $DATA_PATH/2025/$splitname-2025/queries.jsonl \
       --output_dir outputs/scores/$splitname-bge/$version
 
     # mkdir -p outputs/scores/$splitname-bge/$version
