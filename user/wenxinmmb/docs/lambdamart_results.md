@@ -67,6 +67,38 @@ best_params = {
 }
 ```
 
+## Model Analysis and Visualizations
+
+### v4 Model Analysis
+**Feature Importance - Gain**
+![Feature Importance Gain v4](lambda-v4-vis/feature_importance_gain.png)
+
+**Feature Importance - Weight**  
+![Feature Importance Weight v4](lambda-v4-vis/feature_importance_weight.png)
+
+**Tree Depth Distribution**
+![Tree Depth Distribution v4](lambda-v4-vis/tree_depth_distribution.png)
+
+### v5 Model Analysis
+**Feature Importance - Gain**
+![Feature Importance Gain v5](lambda-v5-vis/feature_importance_gain.png)
+
+**Feature Importance - Weight**
+![Feature Importance Weight v5](lambda-v5-vis/feature_importance_weight.png)
+
+**Tree Depth Distribution**
+![Tree Depth Distribution v5](lambda-v5-vis/tree_depth_distribution.png)
+
+### v6 Model Analysis
+**Feature Importance - Gain**
+![Feature Importance Gain v6](lambda-v6-vis/feature_importance_gain.png)
+
+**Feature Importance - Weight**
+![Feature Importance Weight v6](lambda-v6-vis/feature_importance_weight.png)
+
+**Tree Depth Distribution**
+![Tree Depth Distribution v6](lambda-v6-vis/tree_depth_distribution.png)
+
 ## Results
 
 The following tables show the performance comparison between baseline and the three model versions (v4, v5, v6) across different datasets and retrieval methods. Percentages in parentheses indicate relative improvement over baseline.
