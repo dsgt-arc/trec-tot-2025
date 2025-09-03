@@ -1,0 +1,360 @@
+]633;E;for path in $(ls -1 /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/results/rerank/v6*/*reformatted.txt | sort);c7e665a6-1e4c-4561-ba78-52ad7809ab8f]633;C+ '[' '!' -f /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev1-2025-qrel-h100.txt ']'
++ echo 'original results'
+original results
++ run_trec_eval /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/gdrive/data/shared_retrieval_results/bge-passage-dense/dev1.run /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev1-2025-qrel-h100.txt
++ local run_file=/storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/gdrive/data/shared_retrieval_results/bge-passage-dense/dev1.run
++ local qrel_file=/storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev1-2025-qrel-h100.txt
++ trec_eval -m recip_rank -m ndcg_cut.10,100,1000 -m recall.10,100,1000 --complete_rel_info_wanted /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev1-2025-qrel-h100.txt /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/gdrive/data/shared_retrieval_results/bge-passage-dense/dev1.run
+recip_rank            	all	0.0227
+recall_10             	all	0.0600
+recall_100            	all	0.2000
+recall_1000           	all	0.4700
+ndcg_cut_10           	all	0.0267
+ndcg_cut_100          	all	0.0546
+ndcg_cut_1000         	all	0.0876
++ echo 'reranked results'
+reranked results
++ run_trec_eval /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/results/rerank/v6-n100-bge-passage-dense-dev1-gaunernst-gemma-3-27b-it-qat-compressed-tensors-rerank/rerank-results-reformatted.txt /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev1-2025-qrel-h100.txt
++ local run_file=/storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/results/rerank/v6-n100-bge-passage-dense-dev1-gaunernst-gemma-3-27b-it-qat-compressed-tensors-rerank/rerank-results-reformatted.txt
++ local qrel_file=/storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev1-2025-qrel-h100.txt
++ trec_eval -m recip_rank -m ndcg_cut.10,100,1000 -m recall.10,100,1000 --complete_rel_info_wanted /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev1-2025-qrel-h100.txt /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/results/rerank/v6-n100-bge-passage-dense-dev1-gaunernst-gemma-3-27b-it-qat-compressed-tensors-rerank/rerank-results-reformatted.txt
+recip_rank            	all	0.1041
+recall_10             	all	0.1300
+recall_100            	all	0.1600
+recall_1000           	all	0.4700
+ndcg_cut_10           	all	0.1093
+ndcg_cut_100          	all	0.1151
+ndcg_cut_1000         	all	0.1492
++ exit 0
+---------------------------------------
+Begin Slurm Epilog: Aug-29-2025 05:21:57
+Job ID:        413949
+User ID:       amiyaguchi3
+Account:       paceship-dsgt_trec2025
+Job name:      bge-passage-dense-dev1
+Resources:     cpu=4,gres/gpu:l40s=1,mem=16G,node=1
+Rsrc Used:     cput=05:59:44,vmem=0,walltime=01:29:56,mem=8730416K,energy_used=0
+Partition:     gpu-l40s
+QOS:           inferno
+Nodes:         atl1-1-03-007-29-0
+---------------------------------------
++ '[' '!' -f /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev2-2025-qrel-h100.txt ']'
++ echo 'original results'
+original results
++ run_trec_eval /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/gdrive/data/shared_retrieval_results/bge-passage-dense/dev2.run /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev2-2025-qrel-h100.txt
++ local run_file=/storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/gdrive/data/shared_retrieval_results/bge-passage-dense/dev2.run
++ local qrel_file=/storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev2-2025-qrel-h100.txt
++ trec_eval -m recip_rank -m ndcg_cut.10,100,1000 -m recall.10,100,1000 --complete_rel_info_wanted /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev2-2025-qrel-h100.txt /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/gdrive/data/shared_retrieval_results/bge-passage-dense/dev2.run
+recip_rank            	all	0.0272
+recall_10             	all	0.0800
+recall_100            	all	0.2300
+recall_1000           	all	0.4700
+ndcg_cut_10           	all	0.0354
+ndcg_cut_100          	all	0.0641
+ndcg_cut_1000         	all	0.0930
++ echo 'reranked results'
+reranked results
++ run_trec_eval /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/results/rerank/v6-n100-bge-passage-dense-dev2-gaunernst-gemma-3-27b-it-qat-compressed-tensors-rerank/rerank-results-reformatted.txt /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev2-2025-qrel-h100.txt
++ local run_file=/storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/results/rerank/v6-n100-bge-passage-dense-dev2-gaunernst-gemma-3-27b-it-qat-compressed-tensors-rerank/rerank-results-reformatted.txt
++ local qrel_file=/storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev2-2025-qrel-h100.txt
++ trec_eval -m recip_rank -m ndcg_cut.10,100,1000 -m recall.10,100,1000 --complete_rel_info_wanted /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev2-2025-qrel-h100.txt /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/results/rerank/v6-n100-bge-passage-dense-dev2-gaunernst-gemma-3-27b-it-qat-compressed-tensors-rerank/rerank-results-reformatted.txt
+recip_rank            	all	0.1289
+recall_10             	all	0.1500
+recall_100            	all	0.1500
+recall_1000           	all	0.4400
+ndcg_cut_10           	all	0.1339
+ndcg_cut_100          	all	0.1339
+ndcg_cut_1000         	all	0.1653
++ exit 0
+---------------------------------------
+Begin Slurm Epilog: Aug-29-2025 05:19:20
+Job ID:        413953
+User ID:       amiyaguchi3
+Account:       paceship-dsgt_trec2025
+Job name:      bge-passage-dense-dev2
+Resources:     cpu=4,gres/gpu:l40s=1,mem=16G,node=1
+Rsrc Used:     cput=05:48:24,vmem=0,walltime=01:27:06,mem=11540.50M,energy_used=0
+Partition:     gpu-l40s
+QOS:           inferno
+Nodes:         atl1-1-03-007-29-0
+---------------------------------------
++ echo 'original results'
+original results
++ run_trec_eval /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/gdrive/data/shared_retrieval_results/bge-passage-dense/dev3.run /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev3-2025-qrel-h100.txt
++ local run_file=/storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/gdrive/data/shared_retrieval_results/bge-passage-dense/dev3.run
++ local qrel_file=/storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev3-2025-qrel-h100.txt
++ trec_eval -m recip_rank -m ndcg_cut.10,100,1000 -m recall.10,100,1000 --complete_rel_info_wanted /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev3-2025-qrel-h100.txt /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/gdrive/data/shared_retrieval_results/bge-passage-dense/dev3.run
+[rank0]:[W829 05:25:46.337739631 ProcessGroupNCCL.cpp:1479] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+recip_rank            	all	0.1545
+recall_10             	all	0.2300
+recall_100            	all	0.3900
+recall_1000           	all	0.6400
+ndcg_cut_10           	all	0.1667
+ndcg_cut_100          	all	0.2007
+ndcg_cut_1000         	all	0.2315
++ echo 'reranked results'
+reranked results
++ run_trec_eval /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/results/rerank/v6-n100-bge-passage-dense-dev3-gaunernst-gemma-3-27b-it-qat-compressed-tensors-rerank/rerank-results-reformatted.txt /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev3-2025-qrel-h100.txt
++ local run_file=/storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/results/rerank/v6-n100-bge-passage-dense-dev3-gaunernst-gemma-3-27b-it-qat-compressed-tensors-rerank/rerank-results-reformatted.txt
++ local qrel_file=/storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev3-2025-qrel-h100.txt
++ trec_eval -m recip_rank -m ndcg_cut.10,100,1000 -m recall.10,100,1000 --complete_rel_info_wanted /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev3-2025-qrel-h100.txt /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/results/rerank/v6-n100-bge-passage-dense-dev3-gaunernst-gemma-3-27b-it-qat-compressed-tensors-rerank/rerank-results-reformatted.txt
+recip_rank            	all	0.3393
+recall_10             	all	0.3700
+recall_100            	all	0.3800
+recall_1000           	all	0.6400
+ndcg_cut_10           	all	0.3465
+ndcg_cut_100          	all	0.3488
+ndcg_cut_1000         	all	0.3774
++ exit 0
+---------------------------------------
+Begin Slurm Epilog: Aug-29-2025 05:25:47
+Job ID:        413954
+User ID:       amiyaguchi3
+Account:       paceship-dsgt_trec2025
+Job name:      bge-passage-dense-dev3
+Resources:     cpu=4,gres/gpu:l40s=1,mem=16G,node=1
+Rsrc Used:     cput=06:12:56,vmem=0,walltime=01:33:14,mem=8858448K,energy_used=0
+Partition:     gpu-l40s
+QOS:           inferno
+Nodes:         atl1-1-03-007-29-0
+---------------------------------------
++ cat /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev1-2025-qrel.txt
++ echo 'original results'
+original results
++ run_trec_eval /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/gdrive/data/shared_retrieval_results/gemini-2.5-flash-v2/dev1.txt /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev1-2025-qrel-h100.txt
++ local run_file=/storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/gdrive/data/shared_retrieval_results/gemini-2.5-flash-v2/dev1.txt
++ local qrel_file=/storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev1-2025-qrel-h100.txt
++ trec_eval -m recip_rank -m ndcg_cut.10,100,1000 -m recall.10,100,1000 --complete_rel_info_wanted /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev1-2025-qrel-h100.txt /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/gdrive/data/shared_retrieval_results/gemini-2.5-flash-v2/dev1.txt
+recip_rank            	all	0.0947
+recall_10             	all	0.1300
+recall_100            	all	0.1300
+recall_1000           	all	0.1300
+ndcg_cut_10           	all	0.1029
+ndcg_cut_100          	all	0.1029
+ndcg_cut_1000         	all	0.1029
++ echo 'reranked results'
+reranked results
++ run_trec_eval /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/results/rerank/v6-n100-gemini-2.5-flash-v2-dev1-gaunernst-gemma-3-27b-it-qat-compressed-tensors-rerank/rerank-results-reformatted.txt /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev1-2025-qrel-h100.txt
++ local run_file=/storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/results/rerank/v6-n100-gemini-2.5-flash-v2-dev1-gaunernst-gemma-3-27b-it-qat-compressed-tensors-rerank/rerank-results-reformatted.txt
++ local qrel_file=/storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev1-2025-qrel-h100.txt
++ trec_eval -m recip_rank -m ndcg_cut.10,100,1000 -m recall.10,100,1000 --complete_rel_info_wanted /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev1-2025-qrel-h100.txt /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/results/rerank/v6-n100-gemini-2.5-flash-v2-dev1-gaunernst-gemma-3-27b-it-qat-compressed-tensors-rerank/rerank-results-reformatted.txt
+recip_rank            	all	0.1022
+recall_10             	all	0.1200
+recall_100            	all	0.1300
+recall_1000           	all	0.1300
+ndcg_cut_10           	all	0.1063
+ndcg_cut_100          	all	0.1087
+ndcg_cut_1000         	all	0.1087
++ exit 0
+---------------------------------------
+Begin Slurm Epilog: Aug-29-2025 04:19:05
+Job ID:        413989
+User ID:       amiyaguchi3
+Account:       paceship-dsgt_trec2025
+Job name:      gemini-2.5-flash-v2-dev1
+Resources:     cpu=4,gres/gpu:l40s=1,mem=16G,node=1
+Rsrc Used:     cput=00:43:56,vmem=0,walltime=00:10:59,mem=8491640K,energy_used=0
+Partition:     gpu-l40s
+QOS:           inferno
+Nodes:         atl1-1-03-007-29-0
+---------------------------------------
++ cat /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev2-2025-qrel.txt
++ echo 'original results'
+original results
++ run_trec_eval /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/gdrive/data/shared_retrieval_results/gemini-2.5-flash-v2/dev2.txt /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev2-2025-qrel-h100.txt
++ local run_file=/storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/gdrive/data/shared_retrieval_results/gemini-2.5-flash-v2/dev2.txt
++ local qrel_file=/storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev2-2025-qrel-h100.txt
++ trec_eval -m recip_rank -m ndcg_cut.10,100,1000 -m recall.10,100,1000 --complete_rel_info_wanted /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev2-2025-qrel-h100.txt /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/gdrive/data/shared_retrieval_results/gemini-2.5-flash-v2/dev2.txt
+recip_rank            	all	0.1119
+recall_10             	all	0.1400
+recall_100            	all	0.1400
+recall_1000           	all	0.1400
+ndcg_cut_10           	all	0.1186
+ndcg_cut_100          	all	0.1186
+ndcg_cut_1000         	all	0.1186
++ echo 'reranked results'
+reranked results
++ run_trec_eval /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/results/rerank/v6-n100-gemini-2.5-flash-v2-dev2-gaunernst-gemma-3-27b-it-qat-compressed-tensors-rerank/rerank-results-reformatted.txt /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev2-2025-qrel-h100.txt
++ local run_file=/storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/results/rerank/v6-n100-gemini-2.5-flash-v2-dev2-gaunernst-gemma-3-27b-it-qat-compressed-tensors-rerank/rerank-results-reformatted.txt
++ local qrel_file=/storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev2-2025-qrel-h100.txt
++ trec_eval -m recip_rank -m ndcg_cut.10,100,1000 -m recall.10,100,1000 --complete_rel_info_wanted /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev2-2025-qrel-h100.txt /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/results/rerank/v6-n100-gemini-2.5-flash-v2-dev2-gaunernst-gemma-3-27b-it-qat-compressed-tensors-rerank/rerank-results-reformatted.txt
+recip_rank            	all	0.1129
+recall_10             	all	0.1200
+recall_100            	all	0.1400
+recall_1000           	all	0.1400
+ndcg_cut_10           	all	0.1133
+ndcg_cut_100          	all	0.1185
+ndcg_cut_1000         	all	0.1185
++ exit 0
+---------------------------------------
+Begin Slurm Epilog: Aug-29-2025 04:19:08
+Job ID:        413990
+User ID:       amiyaguchi3
+Account:       paceship-dsgt_trec2025
+Job name:      gemini-2.5-flash-v2-dev2
+Resources:     cpu=4,gres/gpu:l40s=1,mem=16G,node=1
+Rsrc Used:     cput=00:43:12,vmem=0,walltime=00:10:48,mem=8408444K,energy_used=0
+Partition:     gpu-l40s
+QOS:           inferno
+Nodes:         atl1-1-03-007-29-0
+---------------------------------------
++ '[' '!' -f /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev3-2025-qrel-h100.txt ']'
++ echo 'original results'
+original results
++ run_trec_eval /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/gdrive/data/shared_retrieval_results/gemini-2.5-flash-v2/dev3.txt /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev3-2025-qrel-h100.txt
++ local run_file=/storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/gdrive/data/shared_retrieval_results/gemini-2.5-flash-v2/dev3.txt
++ local qrel_file=/storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev3-2025-qrel-h100.txt
++ trec_eval -m recip_rank -m ndcg_cut.10,100,1000 -m recall.10,100,1000 --complete_rel_info_wanted /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev3-2025-qrel-h100.txt /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/gdrive/data/shared_retrieval_results/gemini-2.5-flash-v2/dev3.txt
+recip_rank            	all	0.6475
+recall_10             	all	0.7000
+recall_100            	all	0.7000
+recall_1000           	all	0.7000
+ndcg_cut_10           	all	0.6609
+ndcg_cut_100          	all	0.6609
+ndcg_cut_1000         	all	0.6609
++ echo 'reranked results'
+reranked results
++ run_trec_eval /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/results/rerank/v6-n100-gemini-2.5-flash-v2-dev3-gaunernst-gemma-3-27b-it-qat-compressed-tensors-rerank/rerank-results-reformatted.txt /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev3-2025-qrel-h100.txt
++ local run_file=/storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/results/rerank/v6-n100-gemini-2.5-flash-v2-dev3-gaunernst-gemma-3-27b-it-qat-compressed-tensors-rerank/rerank-results-reformatted.txt
++ local qrel_file=/storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev3-2025-qrel-h100.txt
++ trec_eval -m recip_rank -m ndcg_cut.10,100,1000 -m recall.10,100,1000 --complete_rel_info_wanted /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev3-2025-qrel-h100.txt /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/results/rerank/v6-n100-gemini-2.5-flash-v2-dev3-gaunernst-gemma-3-27b-it-qat-compressed-tensors-rerank/rerank-results-reformatted.txt
+recip_rank            	all	0.6491
+recall_10             	all	0.6900
+recall_100            	all	0.7000
+recall_1000           	all	0.7000
+ndcg_cut_10           	all	0.6592
+ndcg_cut_100          	all	0.6618
+ndcg_cut_1000         	all	0.6618
++ exit 0
+---------------------------------------
+Begin Slurm Epilog: Aug-29-2025 04:19:22
+Job ID:        413992
+User ID:       amiyaguchi3
+Account:       paceship-dsgt_trec2025
+Job name:      gemini-2.5-flash-v2-dev3
+Resources:     cpu=4,gres/gpu:l40s=1,mem=16G,node=1
+Rsrc Used:     cput=00:43:40,vmem=0,walltime=00:10:55,mem=9013600K,energy_used=0
+Partition:     gpu-l40s
+QOS:           inferno
+Nodes:         atl1-1-01-010-33-0
+---------------------------------------
++ '[' '!' -f /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev1-2025-qrel-h100.txt ']'
++ echo 'original results'
+original results
++ run_trec_eval /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/gdrive/data/shared_retrieval_results/pyterrier-bm25/dev1.run /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev1-2025-qrel-h100.txt
++ local run_file=/storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/gdrive/data/shared_retrieval_results/pyterrier-bm25/dev1.run
++ local qrel_file=/storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev1-2025-qrel-h100.txt
++ trec_eval -m recip_rank -m ndcg_cut.10,100,1000 -m recall.10,100,1000 --complete_rel_info_wanted /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev1-2025-qrel-h100.txt /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/gdrive/data/shared_retrieval_results/pyterrier-bm25/dev1.run
+recip_rank            	all	0.1016
+recall_10             	all	0.1300
+recall_100            	all	0.2400
+recall_1000           	all	0.4500
+ndcg_cut_10           	all	0.1054
+ndcg_cut_100          	all	0.1268
+ndcg_cut_1000         	all	0.1521
++ echo 'reranked results'
+reranked results
++ run_trec_eval /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/results/rerank/v6-n100-pyterrier-bm25-dev1-gaunernst-gemma-3-27b-it-qat-compressed-tensors-rerank/rerank-results-reformatted.txt /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev1-2025-qrel-h100.txt
++ local run_file=/storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/results/rerank/v6-n100-pyterrier-bm25-dev1-gaunernst-gemma-3-27b-it-qat-compressed-tensors-rerank/rerank-results-reformatted.txt
++ local qrel_file=/storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev1-2025-qrel-h100.txt
++ trec_eval -m recip_rank -m ndcg_cut.10,100,1000 -m recall.10,100,1000 --complete_rel_info_wanted /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev1-2025-qrel-h100.txt /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/results/rerank/v6-n100-pyterrier-bm25-dev1-gaunernst-gemma-3-27b-it-qat-compressed-tensors-rerank/rerank-results-reformatted.txt
+recip_rank            	all	0.1183
+recall_10             	all	0.1500
+recall_100            	all	0.1700
+recall_1000           	all	0.4500
+ndcg_cut_10           	all	0.1259
+ndcg_cut_100          	all	0.1291
+ndcg_cut_1000         	all	0.1595
++ exit 0
+---------------------------------------
+Begin Slurm Epilog: Aug-29-2025 05:26:18
+Job ID:        413939
+User ID:       amiyaguchi3
+Account:       paceship-dsgt_trec2025
+Job name:      pyterrier-bm25-dev1
+Resources:     cpu=4,gres/gpu:l40s=1,mem=16G,node=1
+Rsrc Used:     cput=06:19:20,vmem=0,walltime=01:34:50,mem=12543436K,energy_used=0
+Partition:     gpu-l40s
+QOS:           inferno
+Nodes:         atl1-1-03-007-29-0
+---------------------------------------
++ '[' '!' -f /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev2-2025-qrel-h100.txt ']'
++ echo 'original results'
+original results
++ run_trec_eval /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/gdrive/data/shared_retrieval_results/pyterrier-bm25/dev2.run /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev2-2025-qrel-h100.txt
++ local run_file=/storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/gdrive/data/shared_retrieval_results/pyterrier-bm25/dev2.run
++ local qrel_file=/storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev2-2025-qrel-h100.txt
++ trec_eval -m recip_rank -m ndcg_cut.10,100,1000 -m recall.10,100,1000 --complete_rel_info_wanted /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev2-2025-qrel-h100.txt /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/gdrive/data/shared_retrieval_results/pyterrier-bm25/dev2.run
+recip_rank            	all	0.0912
+recall_10             	all	0.1500
+recall_100            	all	0.2000
+recall_1000           	all	0.4400
+ndcg_cut_10           	all	0.1039
+ndcg_cut_100          	all	0.1135
+ndcg_cut_1000         	all	0.1411
++ echo 'reranked results'
+reranked results
++ run_trec_eval /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/results/rerank/v6-n100-pyterrier-bm25-dev2-gaunernst-gemma-3-27b-it-qat-compressed-tensors-rerank/rerank-results-reformatted.txt /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev2-2025-qrel-h100.txt
++ local run_file=/storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/results/rerank/v6-n100-pyterrier-bm25-dev2-gaunernst-gemma-3-27b-it-qat-compressed-tensors-rerank/rerank-results-reformatted.txt
++ local qrel_file=/storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev2-2025-qrel-h100.txt
++ trec_eval -m recip_rank -m ndcg_cut.10,100,1000 -m recall.10,100,1000 --complete_rel_info_wanted /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev2-2025-qrel-h100.txt /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/results/rerank/v6-n100-pyterrier-bm25-dev2-gaunernst-gemma-3-27b-it-qat-compressed-tensors-rerank/rerank-results-reformatted.txt
+recip_rank            	all	0.1042
+recall_10             	all	0.1200
+recall_100            	all	0.1200
+recall_1000           	all	0.4400
+ndcg_cut_10           	all	0.1076
+ndcg_cut_100          	all	0.1076
+ndcg_cut_1000         	all	0.1439
++ exit 0
+---------------------------------------
+Begin Slurm Epilog: Aug-29-2025 05:25:24
+Job ID:        413947
+User ID:       amiyaguchi3
+Account:       paceship-dsgt_trec2025
+Job name:      pyterrier-bm25-dev2
+Resources:     cpu=4,gres/gpu:l40s=1,mem=16G,node=1
+Rsrc Used:     cput=06:15:04,vmem=0,walltime=01:33:46,mem=11876088K,energy_used=0
+Partition:     gpu-l40s
+QOS:           inferno
+Nodes:         atl1-1-03-007-29-0
+---------------------------------------
++ echo 'original results'
+original results
++ run_trec_eval /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/gdrive/data/shared_retrieval_results/pyterrier-bm25/dev3.run /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev3-2025-qrel-h100.txt
++ local run_file=/storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/gdrive/data/shared_retrieval_results/pyterrier-bm25/dev3.run
++ local qrel_file=/storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev3-2025-qrel-h100.txt
++ trec_eval -m recip_rank -m ndcg_cut.10,100,1000 -m recall.10,100,1000 --complete_rel_info_wanted /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev3-2025-qrel-h100.txt /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/gdrive/data/shared_retrieval_results/pyterrier-bm25/dev3.run
+[rank0]:[W829 05:26:49.356915294 ProcessGroupNCCL.cpp:1479] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+recip_rank            	all	0.3038
+recall_10             	all	0.4400
+recall_100            	all	0.6200
+recall_1000           	all	0.8100
+ndcg_cut_10           	all	0.3302
+ndcg_cut_100          	all	0.3665
+ndcg_cut_1000         	all	0.3894
++ echo 'reranked results'
+reranked results
++ run_trec_eval /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/results/rerank/v6-n100-pyterrier-bm25-dev3-gaunernst-gemma-3-27b-it-qat-compressed-tensors-rerank/rerank-results-reformatted.txt /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev3-2025-qrel-h100.txt
++ local run_file=/storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/results/rerank/v6-n100-pyterrier-bm25-dev3-gaunernst-gemma-3-27b-it-qat-compressed-tensors-rerank/rerank-results-reformatted.txt
++ local qrel_file=/storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev3-2025-qrel-h100.txt
++ trec_eval -m recip_rank -m ndcg_cut.10,100,1000 -m recall.10,100,1000 --complete_rel_info_wanted /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/data/official/dev3-2025-qrel-h100.txt /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/results/rerank/v6-n100-pyterrier-bm25-dev3-gaunernst-gemma-3-27b-it-qat-compressed-tensors-rerank/rerank-results-reformatted.txt
+recip_rank            	all	0.5104
+recall_10             	all	0.5700
+recall_100            	all	0.5900
+recall_1000           	all	0.8100
+ndcg_cut_10           	all	0.5245
+ndcg_cut_100          	all	0.5285
+ndcg_cut_1000         	all	0.5534
++ exit 0
+---------------------------------------
+Begin Slurm Epilog: Aug-29-2025 05:26:50
+Job ID:        413948
+User ID:       amiyaguchi3
+Account:       paceship-dsgt_trec2025
+Job name:      pyterrier-bm25-dev3
+Resources:     cpu=4,gres/gpu:l40s=1,mem=16G,node=1
+Rsrc Used:     cput=06:19:40,vmem=0,walltime=01:34:55,mem=11632532K,energy_used=0
+Partition:     gpu-l40s
+QOS:           inferno
+Nodes:         atl1-1-03-007-29-0
+---------------------------------------

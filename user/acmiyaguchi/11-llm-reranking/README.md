@@ -301,7 +301,7 @@ for model in gaunernst/gemma-3-27b-it-qat-compressed-tensors; do
 done
 ```
 
-```
+```bash
 for path in /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/results/rerank/v5*; do echo $path; done
 
 
@@ -333,4 +333,12 @@ for model in gaunernst/gemma-3-27b-it-qat-compressed-tensors; do
         done
     done
 done
+```
+
+```bash
+for path in /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/results/rerank/v6*; do echo $path; done
+
+for path in $(ls -1 /storage/home/hcoda1/8/amiyaguchi3/scratch/trec-tot-2025/results/rerank/v6*/*reformatted.txt | sort); do
+    grep -l $path logs/* 2>/dev/null | xargs ls -t | head -1 | xargs tail -n40
+done > v6.txt
 ```
