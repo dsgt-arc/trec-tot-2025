@@ -3,6 +3,7 @@
 #SBATCH --nodes=1 --partition=gpu-l40s --gres=gpu:L40s
 #SBATCH -t12:00:00 -qinferno -ologs/rerank-v7-%j.out
 #SBATCH --mail-type=START,END,FAIL --mail-user=acmiyaguchi@gatech.edu
+#SBATCH --exclude=atl1-1-01-010-35-0
 
 source $HOME/trec-tot-2025/.venv/bin/activate
 set -ex
@@ -28,7 +29,7 @@ MODEL=${MODEL:-"gaunernst/gemma-3-27b-it-qat-compressed-tensors"}
 # comb_200_gemini_bm25_bge.txt  Description.docx  lambdamart-v5-all-1000.txt
 RETRIEVAL_MODEL=${RETRIEVAL_MODEL?}
 OUTPUT_SUFFIX=v7/$RETRIEVAL_MODEL/${DEVSET}-${batch_rank_end}-${num_queries}-${start_query_index}
-INPUT_PATH=$gdrive_path/shared_retrieval_results/$DEVSET/$RETRIEVAL_MODEL.*
+INPUT_PATH=$gdrive_path/shared_retrieval_results/2025-test/$RETRIEVAL_MODEL.*
 
 # Simple flock-based semaphore to prevent duplicate jobs
 LOCK_DIR="$HOME/scratch/trec-tot-2025/locks"
@@ -36,12 +37,16 @@ LOCK_FILE="$LOCK_DIR/${OUTPUT_SUFFIX}.lock"
 mkdir -p "$(dirname "$LOCK_FILE")"
 
 # Use flock to prevent duplicate experiments
-exec 200>"$LOCK_FILE"
-if ! flock -n 200; then
+# Let bash assign an available file descriptor automatically
+exec {lock_fd}>"$LOCK_FILE"
+if ! flock -n $lock_fd; then
     echo "Another job is already running this experiment: $OUTPUT_SUFFIX"
     echo "Exiting to avoid wasting GPU resources."
     exit 0
 fi
+# The lock stays active until the script exits
+# now trap exit to remove the lock file
+trap 'rm -f "$LOCK_FILE"' EXIT
 
 # check if rerank-results already exist and exit early
 if [ -f "$output_path/$OUTPUT_SUFFIX/rerank-results-reformatted.txt" ]; then
@@ -83,13 +88,13 @@ nvidia-smi
 
 time python $rerank_path/tot_llm_reranking.py \
     --input-trec-run $INPUT_PATH \
-    --queries-file $official_path/$DEVSET-2025-queries.jsonl \
+    --queries-file $official_path/$DEVSET-queries.jsonl \
     --corpus-file $official_path/trec-tot-2025-corpus.jsonl \
     --offset-file $gdrive_path/corpus-offset-mapping.json \
     --prompt-template-path $script_parent_path/rank_lrl_template.yaml \
     --model $MODEL \
     --save-invocations-history \
-    --start-query-index $(( start_query_index * num_queries)) \
+    --start-query-index $(( start_query_index )) \
     --num-queries $num_queries \
     --batch-rank-end ${batch_rank_end} \
     --output-dir $output_path/$OUTPUT_SUFFIX \
