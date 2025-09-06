@@ -65,3 +65,16 @@ echo "Missing queries: $(comm -23 /tmp/all_queries.txt /tmp/processed_queries.tx
 # Run the analysis script to identify which batches to rerun
 python find_missing_batches.py
 ```
+
+Now I'm missing two documents, but I'm going to submit this as is for now.
+
+```bash
+inpath=$HOME/trec-tot-2025/.scratch/results/rerank/v7/comb_200_gemini_bm25_bge
+outpath=$HOME/scratch/trec-tot-2025/data/rerank_test/v7_comb_200_gemini_bm25_bge/combined
+mkdir -p $outpath
+cat $inpath/*/*results-reformatted.txt > $outpath/results.txt
+cp -r $inpath $(dirname $outpath)/raw
+
+# sync
+rclone copy $HOME/scratch/trec-tot-2025/data/rerank_test gdrive-trec-tot-2025:data/rerank_test
+```
