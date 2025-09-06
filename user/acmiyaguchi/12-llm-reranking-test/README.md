@@ -1,5 +1,7 @@
 # llm reranking for test
 
+# combined
+
 ```bash
 comb_200_gemini_bm25_bge
 lambdamart-v5-all-1000
@@ -30,7 +32,7 @@ done
 
 ```bash
 export RETRIEVAL_MODEL=comb_200_gemini_bm25_bge
-for idx in 150 300 400 450; do
+for idx in 150 300; do
    echo \
    RETRIEVAL_MODEL=$RETRIEVAL_MODEL \
    START_QUERY_INDEX=$idx \
@@ -71,6 +73,48 @@ Now I'm missing two documents, but I'm going to submit this as is for now.
 ```bash
 inpath=$HOME/trec-tot-2025/.scratch/results/rerank/v7/comb_200_gemini_bm25_bge
 outpath=$HOME/scratch/trec-tot-2025/data/rerank_test/v7_comb_200_gemini_bm25_bge/combined
+mkdir -p $outpath
+cat $inpath/*/*results-reformatted.txt > $outpath/results.txt
+cp -r $inpath $(dirname $outpath)/raw
+
+# sync
+rclone copy $HOME/scratch/trec-tot-2025/data/rerank_test gdrive-trec-tot-2025:data/rerank_test
+```
+
+# lambdamart
+
+```bash
+export RETRIEVAL_MODEL=lambdamart-v5-all-1000
+for idx in $(seq 0 50 600); do
+   echo \
+   RETRIEVAL_MODEL=$RETRIEVAL_MODEL \
+   START_QUERY_INDEX=$idx \
+   sbatch -J "$RETRIEVAL_MODEL-$idx" rerank.sbatch
+done
+```
+
+```bash
+# Create a comparison to find missing queries
+path=$HOME/trec-tot-2025/.scratch/results/rerank/v7/lambdamart-v5-all-1000
+cat $path/*/*results-reformatted.txt | cut -d' ' -f1 | sort | uniq > /tmp/processed_queries.txt
+cat $HOME/trec-tot-2025/.scratch/data/official/test-2025-queries.jsonl | jq -r '.query_id' | sort > /tmp/all_queries.txt
+
+# Show the difference (missing queries)
+echo "Missing queries:"
+comm -23 /tmp/all_queries.txt /tmp/processed_queries.txt
+
+# Get summary counts
+echo "Total queries: $(wc -l < /tmp/all_queries.txt)"
+echo "Processed queries: $(wc -l < /tmp/processed_queries.txt)"
+echo "Missing queries: $(comm -23 /tmp/all_queries.txt /tmp/processed_queries.txt | wc -l)"
+
+# Run the analysis script to identify which batches to rerun
+python find_missing_batches.py
+```
+
+```bash
+inpath=$HOME/trec-tot-2025/.scratch/results/rerank/v7/lambdamart-v5-all-1000
+outpath=$HOME/scratch/trec-tot-2025/data/rerank_test/v7_lambdamart-v5-all-1000/combined
 mkdir -p $outpath
 cat $inpath/*/*results-reformatted.txt > $outpath/results.txt
 cp -r $inpath $(dirname $outpath)/raw

@@ -3,7 +3,7 @@
 #SBATCH --nodes=1 --partition=gpu-l40s --gres=gpu:L40s
 #SBATCH -t12:00:00 -qinferno -ologs/rerank-v7-%j.out
 #SBATCH --mail-type=START,END,FAIL --mail-user=acmiyaguchi@gatech.edu
-#SBATCH --exclude=atl1-1-01-010-35-0
+##SBATCH --exclude=atl1-1-01-010-35-0
 
 source $HOME/trec-tot-2025/.venv/bin/activate
 set -ex
