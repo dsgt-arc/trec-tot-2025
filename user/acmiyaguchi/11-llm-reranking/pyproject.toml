@@ -1,0 +1,17 @@
+[project]
+name = "11-llm-reranking"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "rank-llm",
+    "vllm",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = []
+
+[tool.uv.sources]
+rank-llm = { git = "https://github.com/wenxinmmb/rank_llm.git", rev = "2d7aa4f" }

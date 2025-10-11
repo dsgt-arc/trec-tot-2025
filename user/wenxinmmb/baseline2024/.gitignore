@@ -1,0 +1,15 @@
+# anserini files
+anserini_indicies
+anserini_docs
+
+# generated output
+runs
+bm25_negatives
+dense_embeddings
+distilbert_negatives
+dense_models
+dense/embeddings/*
+llm/anserini_title*
+llm/unmatched/*
+llm/outputs/*
+llm/wiki-aliases.json

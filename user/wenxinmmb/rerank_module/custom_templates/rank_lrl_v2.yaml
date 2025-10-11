@@ -1,0 +1,12 @@
+method: "singleturn_listwise"
+prefix: |
+  Sort the list ARTICLES (which are wikipedia articles) by how good each article answers the tip-of-the-tongue QUESTION (in descending order of relevancy).
+body: |
+  ARTICLE{rank} = "{candidate}"
+suffix: |-
+  QUESTION: "{query}"
+  ARTICLES: {psg_ids}
+  Sort the ARTICLES by their relevance to the Query. The answer should be a sorted list of ARTICLE ids (e.g., [ARTICLE2, ..., ARTICLE1]). Do not include any additional words or explanations.
+  SORTED_ARTICLES =
+output_validation_regex: r"^\[ARTICLE\d+(, ARTICLE\d+)*\]$"
+output_extraction_regex: r"ARTICLE(\d+)"

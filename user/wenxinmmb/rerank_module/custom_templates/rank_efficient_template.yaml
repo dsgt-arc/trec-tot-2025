@@ -1,0 +1,17 @@
+method: "singleturn_efficient"
+prefix: |
+  Rate each PASSAGE's relevance to the QUESTION using a 0-10 scale, then rank them.
+body: |
+  PASSAGE{rank} = "{candidate}"
+suffix: |-
+  QUESTION: "{query}"
+  PASSAGES: {psg_ids}
+  
+  For each passage, assign a relevance score (0-10 scale):
+  10=Perfect match, 8-9=Highly relevant, 6-7=Moderately relevant, 4-5=Somewhat relevant, 2-3=Low relevance, 0-1=Not relevant
+  
+  Format: PASSAGE_ID:SCORE (one per line)
+  
+  SCORES:
+output_validation_regex: r'^(PASSAGE\d+:\d+(?:\.\d+)?\s*\n)*PASSAGE\d+:\d+(?:\.\d+)?\s*$'
+output_extraction_regex: r'PASSAGE(\d+):(\d+(?:\.\d+)?)'
