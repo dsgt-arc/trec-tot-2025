@@ -107,9 +107,9 @@ def get_full_text_embeddings_batched(docs, model, max_tokens=256, batch_size=512
     return pooled
 
 def create_embeddings_from_parquet_shards(
-    input_dir="/workspace/split_parquet_shards",
-    output_dir="/workspace/embeddings_shards_from_parquet",
-    model_name="sentence-transformers/all-MiniLM-L6-v2",
+    input_dir="/storage/home/hcoda1/5/rmehta307/scratch/trec-tot-2025/split_parquet_shards/",
+    output_dir="/storage/home/hcoda1/5/rmehta307/scratch/trec-tot-2025/bge-m3-embeddings_shards_from_parquet",
+    model_name="BAAI/bge-m3",
     batch_size=512,
 ):
     """
@@ -177,8 +177,8 @@ if __name__ == "__main__":
 
     # Uncomment below to run on Parquet shards
     create_embeddings_from_parquet_shards(
-        input_dir="/workspace/split_parquet_shards",
-        output_dir="/workspace/bge-m3-embeddings_shards_from_parquet",
+        input_dir="/storage/home/hcoda1/5/rmehta307/scratch/trec-tot-2025/split_parquet_shards/",
+        output_dir="/storage/home/hcoda1/5/rmehta307/scratch/trec-tot-2025/bge-m3-embeddings_shards_from_parquet",
         model_name=model_name,
         batch_size=16
     )

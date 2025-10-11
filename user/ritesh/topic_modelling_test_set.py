@@ -37,8 +37,8 @@ def classify_queries_jsonl(jsonl_path, output_path, batch_size=1):
         results.append({
             "query_id": queries[idx]["query_id"],
             "query": queries[idx]["query"],
-            "predicted_topic": pred[0]["label"],
-            "confidence": round(pred[0]["score"], 4)
+            "predicted_topic": pred[0]["label"].split("- Includes")[0],
+            "confidence": round(pred[0]["score"], 2)
         })
 
     # print a summary of how many queries were classified into each topic
@@ -53,6 +53,6 @@ def classify_queries_jsonl(jsonl_path, output_path, batch_size=1):
 
 if __name__ == "__main__":
     # Example usage
-    jsonl_path = "scratch/trec-tot-2025/trec-tot-2025/user/ritesh/test-2025-queries.jsonl"  # Update with your test set path
-    output_path = "scratch/trec-tot-2025/trec-tot-2025/user/ritesh/classified_test_set.csv"
+    jsonl_path = "/storage/home/hcoda1/5/rmehta307/scratch/trec-tot-2025/dev1-2025-queries-simplified_gemini.jsonl"  # Update with your test set path
+    output_path = "/storage/home/hcoda1/5/rmehta307/scratch/trec-tot-2025/dev1-2025-queries-simplified_gemini-topics.csv"
     classify_queries_jsonl(jsonl_path, output_path)

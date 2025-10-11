@@ -67,14 +67,24 @@ class CompiledPatterns:
         
         self.table_pattern = re.compile(r'\|\s*\w+\s*\|\s*\w+')
         
-        self.disambiguation_indicators = [
-            'may refer to:', 'can refer to:', 'disambiguation', 'for other uses',
-            'for other meanings', 'not to be confused with'
+        # Pre-compiled disambiguation and competition patterns for faster string searches
+        self.disambiguation_patterns = [
+            re.compile(r'may refer to:', re.IGNORECASE),
+            re.compile(r'can refer to:', re.IGNORECASE),
+            re.compile(r'disambiguation', re.IGNORECASE),
+            re.compile(r'for other uses', re.IGNORECASE),
+            re.compile(r'for other meanings', re.IGNORECASE),
+            re.compile(r'not to be confused with', re.IGNORECASE)
         ]
         
-        self.competition_indicators = [
-            'elimination round', 'pool a', 'pool b', 'group stage', 'semifinals',
-            'quarterfinals', 'qualifying round', 'heat 1', 'heat 2'
+        self.competition_patterns = [
+            re.compile(r'elimination round', re.IGNORECASE),
+            re.compile(r'pool [ab]', re.IGNORECASE),
+            re.compile(r'group stage', re.IGNORECASE),
+            re.compile(r'semifinals', re.IGNORECASE),
+            re.compile(r'quarterfinals', re.IGNORECASE),
+            re.compile(r'qualifying round', re.IGNORECASE),
+            re.compile(r'heat [12]', re.IGNORECASE)
         ]
         
         # Explanatory content patterns (pre-compiled)
@@ -208,6 +218,35 @@ class CompiledPatterns:
         self.sentence_split_pattern = re.compile(r'[.!?]+')
         self.paragraph_split_pattern = re.compile(r'\n\s*\n')
         self.word_pattern = re.compile(r'\b\w+\b')
+        
+        # Key identifying information patterns for short valuable articles (now pre-compiled)
+        self.identifying_patterns = [
+            # Dates and years
+            re.compile(r'\b(19\d{2}|20\d{2})\b'),
+            re.compile(r'\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}', re.IGNORECASE),
+            
+            # Chart/ranking information
+            re.compile(r'\b(no\.|number|#)\s*\d+', re.IGNORECASE),
+            re.compile(r'\b(chart|billboard|hit|peaked|reached)\b', re.IGNORECASE),
+            re.compile(r'\b(top|first|second|third|\d+th)\b', re.IGNORECASE),
+            
+            # Media/publication info
+            re.compile(r'\b(album|single|ep|lp|cd|dvd|film|movie|book|novel)\b', re.IGNORECASE),
+            re.compile(r'\b(released|published|aired|broadcast|premiered)\b', re.IGNORECASE),
+            re.compile(r'\b(featured|appeared|included)\b', re.IGNORECASE),
+            
+            # People and attribution
+            re.compile(r'\b(written|composed|performed|directed|produced|created|sung)\s+by\b', re.IGNORECASE),
+            re.compile(r'\b(starring|featuring|with|by)\b', re.IGNORECASE),
+            
+            # Awards and recognition
+            re.compile(r'\b(award|winner|nominated|prize|honor|recognition)\b', re.IGNORECASE),
+            re.compile(r'\b(gold|platinum|certified|selling)\b', re.IGNORECASE),
+            
+            # Geographic and institutional info
+            re.compile(r'\b(in|from|of)\s+(canada|uk|us|usa|britain|america|australia)\b', re.IGNORECASE),
+            re.compile(r'\b(university|college|school|academy)\b', re.IGNORECASE)
+        ]
 
 # Initialize global patterns object
 patterns = CompiledPatterns()
@@ -315,20 +354,20 @@ def is_list_or_disambiguation_page(title: str, text: str) -> bool:
     if total_content_lines > 0 and (table_lines / total_content_lines) > 0.4:
         return True
         
-    # Check for disambiguation indicators
-    for indicator in patterns.disambiguation_indicators:
-        if indicator in text_lower:
+    # Check for disambiguation indicators using pre-compiled patterns
+    for pattern in patterns.disambiguation_patterns:
+        if pattern.search(text_lower):
             return True
 
-    # Check for competition/results-specific content
-    competition_matches = sum(1 for indicator in patterns.competition_indicators if indicator in text_lower)
+    # Check for competition/results-specific content using pre-compiled patterns
+    competition_matches = sum(1 for pattern in patterns.competition_patterns if pattern.search(text_lower))
     if competition_matches >= 2:
         return True
        
     return False
 
 def has_explanatory_content(text: str) -> bool:
-    """Check if article has explanatory/descriptive content across all domains"""
+    """Check if article has explanatory/descriptive content across all domains (relaxed for short articles)"""
     
     explanatory_matches = 0
     text_lower = text.lower()
@@ -339,39 +378,45 @@ def has_explanatory_content(text: str) -> bool:
     
     # Normalize by text length
     words = len(text.split())
-    if words < 50:
+    if words < 30:
         return False
         
-    explanatory_density = (explanatory_matches / words) * 100
-    return explanatory_density >= 3.0
+    # Relaxed threshold for shorter articles
+    if words < 100:
+        explanatory_density = (explanatory_matches / words) * 100
+        return explanatory_density >= 1.5  # Lower threshold for short articles
+    else:
+        explanatory_density = (explanatory_matches / words) * 100
+        return explanatory_density >= 2.5  # Still lower than original 3.0
 
 def has_coherent_paragraphs(text: str) -> bool:
-    """Check for well-structured paragraphs with substantial content"""
+    """Check for well-structured paragraphs with substantial content (relaxed for short articles)"""
     
     # Clean and split into paragraphs
     cleaned_text = patterns.paragraph_split_pattern.sub('\n\n', text)
     paragraphs = [p.strip() for p in cleaned_text.split('\n\n') if p.strip()]
     
+    # For very short articles, treat the whole text as one paragraph
     if len(paragraphs) < 2:
-        return False
+        paragraphs = [text.strip()]
     
     substantial_paragraphs = 0
     for paragraph in paragraphs:
-        # Skip very short paragraphs
-        if len(paragraph.split()) < 20:
+        # Lower word requirement for substantial paragraphs
+        if len(paragraph.split()) < 15:
             continue
             
         # Check for sentence structure
         sentences = patterns.sentence_split_pattern.split(paragraph)
-        valid_sentences = [s.strip() for s in sentences if len(s.strip()) > 10]
+        valid_sentences = [s.strip() for s in sentences if len(s.strip()) > 8]
         
-        if len(valid_sentences) >= 2:
+        if len(valid_sentences) >= 1:  # Just need 1 valid sentence
             substantial_paragraphs += 1
     
-    return substantial_paragraphs >= 2
+    return substantial_paragraphs >= 1  # At least 1 substantial paragraph
 
 def has_contextual_information(text: str) -> bool:
-    """Check for background/contextual information across all domains"""
+    """Check for background/contextual information across all domains (relaxed for short articles)"""
     
     context_matches = 0
     text_lower = text.lower()
@@ -380,39 +425,52 @@ def has_contextual_information(text: str) -> bool:
         if pattern.search(text_lower):
             context_matches += 1
     
-    return context_matches >= 4
+    # More lenient requirement based on article length
+    words = len(text.split())
+    if words < 100:
+        return context_matches >= 2  # Just 2 contextual elements for short articles
+    else:
+        return context_matches >= 3  # 3 for longer articles (down from 4)
 
-def check_unique_words(text: str, min_unique_words: int = 50) -> bool:
-    """Check if article has sufficient vocabulary diversity"""
+def check_unique_words(text: str, min_unique_words: int = 30) -> bool:
+    """Check if article has sufficient vocabulary diversity (lowered for short valuable articles)"""
     words = patterns.word_pattern.findall(text.lower())
     unique_words = set(words)
     return len(unique_words) >= min_unique_words
 
-def check_article_length(text: str, min_chars: int = 600) -> bool:
-    """Check if article meets minimum length for substantial content"""
+def check_article_length(text: str, min_chars: int = 200) -> bool:
+    """Check if article meets minimum length for substantial content (further lowered for short valuable articles)"""
     return len(text.strip()) >= min_chars
 
 def check_sentence_quality(text: str) -> bool:
-    """Check for proper sentence structure and variety"""
+    """Check for proper sentence structure and variety (relaxed for short articles)"""
     
     # Extract sentences
     sentences = patterns.sentence_split_pattern.split(text)
-    valid_sentences = [s.strip() for s in sentences if len(s.strip()) > 15]
+    valid_sentences = [s.strip() for s in sentences if len(s.strip()) > 10]
     
-    if len(valid_sentences) < 5:
+    # More lenient sentence count for short articles
+    words = len(text.split())
+    min_sentences = 3 if words < 100 else 4  # Reduced from 5
+    
+    if len(valid_sentences) < min_sentences:
         return False
     
     # Check sentence length variety
     sentence_lengths = [len(s.split()) for s in valid_sentences]
     avg_length = sum(sentence_lengths) / len(sentence_lengths)
     
-    # Good articles have average sentence length between 8-30 words
-    if avg_length < 8 or avg_length > 30:
+    # More flexible sentence length range
+    if avg_length < 6 or avg_length > 35:
         return False
     
+    # More lenient variety requirement for short articles
+    if words < 100:
+        return True  # Skip variety check for very short articles
+    
     # Check for sentence variety
-    long_sentences = [l for l in sentence_lengths if l > 15]
-    return len(long_sentences) >= len(valid_sentences) * 0.3
+    long_sentences = [l for l in sentence_lengths if l > 12]  # Lowered from 15
+    return len(long_sentences) >= len(valid_sentences) * 0.2  # Lowered from 0.3
 
 def check_content_depth_vs_structure(text: str) -> bool:
     """Check if article has substantial descriptive content vs just structural/factual content"""
@@ -451,21 +509,35 @@ def check_content_depth_vs_structure(text: str) -> bool:
     descriptive_ratio = descriptive_sentences / total_sentences
     return descriptive_ratio >= 0.4
 
+def has_key_identifying_info(text: str) -> bool:
+    """Check if short article has key identifying information typical of TOT-valuable content (optimized with pre-compiled patterns)"""
+    
+    text_lower = text.lower()
+    
+    matches = 0
+    for pattern in patterns.identifying_patterns:
+        if pattern.search(text_lower):
+            matches += 1
+    
+    # Return True if we found at least 2 identifying elements
+    return matches >= 2
+
 def check_content_quality(title: str, text: str) -> Dict[str, bool]:
-    """Domain-agnostic article quality check for TOT-relevant content"""
+    """Domain-agnostic article quality check for TOT-relevant content (relaxed for short valuable articles)"""
     
     checks = {
         'is_not_list_page': not is_list_or_disambiguation_page(title, text),
-        'has_min_unique_words': check_unique_words(text, min_unique_words=50),
-        'has_min_length': check_article_length(text, min_chars=600),
+        'has_min_unique_words': check_unique_words(text, min_unique_words=30),
+        'has_min_length': check_article_length(text, min_chars=200),
         'has_explanatory_content': has_explanatory_content(text),
         'has_coherent_paragraphs': has_coherent_paragraphs(text),
         'has_contextual_information': has_contextual_information(text),
         'has_good_sentences': check_sentence_quality(text),
-        'has_sufficient_content_depth': check_content_depth_vs_structure(text)
+        'has_sufficient_content_depth': check_content_depth_vs_structure(text),
+        'has_key_identifying_info': has_key_identifying_info(text)
     }
     
-    # Essential requirements
+    # Essential requirements (must pass all)
     essential_checks = [
         checks['is_not_list_page'], 
         checks['has_min_unique_words'], 
@@ -481,11 +553,26 @@ def check_content_quality(title: str, text: str) -> Dict[str, bool]:
         checks['has_sufficient_content_depth']
     ]
     
-    # Pass if: all essential requirements + at least 3/5 content quality checks
-    checks['overall_quality'] = (
-        all(essential_checks) and 
-        sum(content_checks) >= 3
-    )
+    # Special case for very short articles with key identifying info
+    words = len(text.split())
+    if words < 80 and checks['has_key_identifying_info']:
+        # Very short but information-rich articles: essentials + 1/5 content checks + identifying info
+        checks['overall_quality'] = (
+            all(essential_checks) and 
+            sum(content_checks) >= 1
+        )
+    elif words < 100:
+        # Short articles: essentials + 2/5 content checks
+        checks['overall_quality'] = (
+            all(essential_checks) and 
+            sum(content_checks) >= 2
+        )
+    else:
+        # Longer articles: essentials + 3/5 content checks  
+        checks['overall_quality'] = (
+            all(essential_checks) and 
+            sum(content_checks) >= 3
+        )
     
     return checks
 
@@ -515,7 +602,7 @@ def process_topic_with_checkpoints(task: Tuple[str, pd.DataFrame, str, str]) -> 
     
     # Processing variables
     current_chunk = []
-    chunk_size = 100000
+    chunk_size = 10000
     total_processed = 0
     total_kept = existing_count
     next_chunk_num = len(glob.glob(os.path.join(output_dir, f"{topic_name}_cleaned_chunk_*.parquet")))
@@ -582,8 +669,8 @@ def process_topic_with_checkpoints(task: Tuple[str, pd.DataFrame, str, str]) -> 
                 
                 # Progress logging
                 if total_processed % 5000 == 0:
-                    logger.info(f"{topic_name}: Processed {total_processed}, passed {len(current_chunk)} articles, failed {total_processed - len(current_chunk)} articles, saved {total_kept} articles so far")
-
+                    logger.info(f"{topic_name}: Processed {total_processed}, kept {total_kept - existing_count}")
+        
         except Exception as e:
             logger.error(f"Error processing shard {shard_path} for {topic_name}: {e}")
             continue
@@ -617,103 +704,118 @@ if __name__ == "__main__":
     os.makedirs(output_dir, exist_ok=True)
 
     # Build index and load data
-    logger.info("Building article index...")
-    global doc_index
-    doc_index = build_shard_index(parquet_shards_dir)
-    logger.info(f"Built index for {len(doc_index)} articles")
+    # logger.info("Building article index...")
+    # global doc_index
+    # doc_index = build_shard_index(parquet_shards_dir)
+    # logger.info(f"Built index for {len(doc_index)} articles")
 
     logger.info("Loading topic CSV files...")
     topic_data = load_topic_csv_files(topic_csv_dir)
     logger.info(f"Loaded {len(topic_data)} topics")
 
-    # Show current progress
-    checkpoint_data = load_checkpoint(checkpoint_file)
-    print("\n" + "="*80)
-    print("CURRENT PROGRESS SUMMARY")
-    print("="*80)
+    # # Show current progress
+    # checkpoint_data = load_checkpoint(checkpoint_file)
+    # print("\n" + "="*80)
+    # print("CURRENT PROGRESS SUMMARY")
+    # print("="*80)
     
-    completed_topics = []
-    in_progress_topics = []
-    pending_topics = []
+    # completed_topics = []
+    # in_progress_topics = []
+    # pending_topics = []
     
-    for topic_name, df in topic_data.items():
-        total_expected = len(df)
-        existing_count, _ = get_existing_progress(topic_name, output_dir)
+    # for topic_name, df in topic_data.items():
+    #     total_expected = len(df)
+    #     existing_count, _ = get_existing_progress(topic_name, output_dir)
         
-        if topic_name in checkpoint_data:
-            status = checkpoint_data[topic_name].get('status', 'unknown')
-            kept = checkpoint_data[topic_name].get('total_articles_kept', existing_count)
+    #     if topic_name in checkpoint_data:
+    #         status = checkpoint_data[topic_name].get('status', 'unknown')
+    #         kept = checkpoint_data[topic_name].get('total_articles_kept', existing_count)
             
-            if status == 'complete':
-                completed_topics.append((topic_name, kept, total_expected))
-            else:
-                in_progress_topics.append((topic_name, kept, total_expected))
-        elif existing_count > 0:
-            in_progress_topics.append((topic_name, existing_count, total_expected))
-        else:
-            pending_topics.append((topic_name, total_expected))
+    #         if status == 'complete':
+    #             completed_topics.append((topic_name, kept, total_expected))
+    #         else:
+    #             in_progress_topics.append((topic_name, kept, total_expected))
+    #     elif existing_count > 0:
+    #         in_progress_topics.append((topic_name, existing_count, total_expected))
+    #     else:
+    #         pending_topics.append((topic_name, total_expected))
     
-    print(f"\n✅ COMPLETED ({len(completed_topics)}):")
-    for topic, kept, total in completed_topics:
-        print(f"  {topic:<25} {kept:>8,} / {total:>8,} ({kept/total*100:.1f}%)")
+    # print(f"\n✅ COMPLETED ({len(completed_topics)}):")
+    # for topic, kept, total in completed_topics:
+    #     print(f"  {topic:<25} {kept:>8,} / {total:>8,} ({kept/total*100:.1f}%)")
     
-    print(f"\n🔄 IN PROGRESS ({len(in_progress_topics)}):")
-    for topic, kept, total in in_progress_topics:
-        print(f"  {topic:<25} {kept:>8,} / {total:>8,} ({kept/total*100:.1f}%)")
+    # print(f"\n🔄 IN PROGRESS ({len(in_progress_topics)}):")
+    # for topic, kept, total in in_progress_topics:
+    #     print(f"  {topic:<25} {kept:>8,} / {total:>8,} ({kept/total*100:.1f}%)")
     
-    print(f"\n⏳ PENDING ({len(pending_topics)}):")
-    for topic, total in pending_topics:
-        print(f"  {topic:<25} {0:>8,} / {total:>8,} (0.0%)")
+    # print(f"\n⏳ PENDING ({len(pending_topics)}):")
+    # for topic, total in pending_topics:
+    #     print(f"  {topic:<25} {0:>8,} / {total:>8,} (0.0%)")
     
-    total_expected = sum(len(df) for df in topic_data.values())
-    total_kept = sum(t[1] for t in completed_topics) + sum(t[1] for t in in_progress_topics)
-    print(f"\n📊 OVERALL: {total_kept:,} / {total_expected:,} ({total_kept/total_expected*100:.1f}%)")
-    print("="*80)
+    # total_expected = sum(len(df) for df in topic_data.values())
+    # total_kept = sum(t[1] for t in completed_topics) + sum(t[1] for t in in_progress_topics)
+    # print(f"\n📊 OVERALL: {total_kept:,} / {total_expected:,} ({total_kept/total_expected*100:.1f}%)")
+    # print("="*80)
     
-    # Determine what to process
-    topics_to_process = []
+    # # Determine what to process
+    # topics_to_process = []
+    # for topic_name, df in topic_data.items():
+    #     if topic_name in checkpoint_data and checkpoint_data[topic_name].get('status') == 'complete':
+    #         continue  # Skip completed topics
+    #     topics_to_process.append((topic_name, df, output_dir, checkpoint_file))
+    
+    # if not topics_to_process:
+    #     logger.info("All topics complete! Nothing to process.")
+    #     exit(0)
+    
+    # logger.info(f"\nProcessing {len(topics_to_process)} topics...")
+    
+    # # Process topics
+    # start_time = time.time()
+    
+    # # For testing single topic:
+    # # result = process_topic_with_checkpoints(topics_to_process[0])
+    # # print(f"Test result: {result}")
+    # # exit(0)
+    
+    # with Pool(cpu_count()) as pool:
+    #     results = pool.map(process_topic_with_checkpoints, topics_to_process)
+    
+    # end_time = time.time()
+    
+    # # Final summary
+    # total_kept_this_run = sum(r[1] for r in results)
+    # total_processed_this_run = sum(r[2] for r in results)
+    
+    # logger.info(f"\n🎉 SESSION COMPLETE in {end_time - start_time:.2f} seconds")
+    # logger.info(f"Articles processed this session: {total_processed_this_run:,}")
+    # logger.info(f"Articles kept this session: {sum(r[1] - get_existing_progress(r[0], output_dir)[0] for r in results):,}")
+    # logger.info(f"Processing rate: {total_processed_this_run / (end_time - start_time):.0f} articles/second")
+    
+    # # Update final checkpoint
+    # checkpoint_data = load_checkpoint(checkpoint_file)
+    # checkpoint_data['last_session'] = {
+    #     'timestamp': time.time(),
+    #     'topics_processed': len(results),
+    #     'total_processed': total_processed_this_run
+    # }
+    # save_checkpoint(checkpoint_file, checkpoint_data)
+    
+    # logger.info(f"Progress saved to: {checkpoint_file}")
+
+    # lets merge all the parquet files for each topic into a single parquet file
     for topic_name, df in topic_data.items():
-        if topic_name in checkpoint_data and checkpoint_data[topic_name].get('status') == 'complete':
-            continue  # Skip completed topics
-        topics_to_process.append((topic_name, df, output_dir, checkpoint_file))
-    
-    if not topics_to_process:
-        logger.info("All topics complete! Nothing to process.")
-        exit(0)
-    
-    logger.info(f"\nProcessing {len(topics_to_process)} topics...")
-    
-    # Process topics
-    start_time = time.time()
-    
-    # For testing single topic:
-    # result = process_topic_with_checkpoints(topics_to_process[0])
-    # print(f"Test result: {result}")
-    # exit(0)
-    
-    process_topic_with_checkpoints(("entertainment", topic_data["entertainment"], output_dir, checkpoint_file))
-    
-    with Pool(cpu_count()) as pool:
-        results = pool.map(process_topic_with_checkpoints, topics_to_process)
-    
-    end_time = time.time()
-    
-    # Final summary
-    total_kept_this_run = sum(r[1] for r in results)
-    total_processed_this_run = sum(r[2] for r in results)
-    
-    logger.info(f"\n🎉 SESSION COMPLETE in {end_time - start_time:.2f} seconds")
-    logger.info(f"Articles processed this session: {total_processed_this_run:,}")
-    logger.info(f"Articles kept this session: {sum(r[1] - get_existing_progress(r[0], output_dir)[0] for r in results):,}")
-    logger.info(f"Processing rate: {total_processed_this_run / (end_time - start_time):.0f} articles/second")
-    
-    # Update final checkpoint
-    checkpoint_data = load_checkpoint(checkpoint_file)
-    checkpoint_data['last_session'] = {
-        'timestamp': time.time(),
-        'topics_processed': len(results),
-        'total_processed': total_processed_this_run
-    }
-    save_checkpoint(checkpoint_file, checkpoint_data)
-    
-    logger.info(f"Progress saved to: {checkpoint_file}")
+        logger.info(f"Merging parquet files for {topic_name}...")
+        parquet_files = glob.glob(os.path.join(output_dir, f"{topic_name}_cleaned_chunk_*.parquet"))
+        if len(parquet_files) > 0:
+            df = pd.concat([pd.read_parquet(f) for f in parquet_files])
+            df.to_parquet(os.path.join(output_dir, f"{topic_name}_cleaned.parquet"))
+            # also save just the id and title per topic in a csv file
+            df[['id', 'title']].to_csv(os.path.join(output_dir, f"{topic_name}_cleaned_ids_and_titles.csv"), index=False)
+            # remove each parquet file
+            logger.info(f"Removing {len(parquet_files)} parquet files for {topic_name}...")
+            for f in parquet_files:
+                os.remove(f)
+            logger.info(f"Removed {len(parquet_files)} parquet files for {topic_name}")
+
+    logger.info("All parquet files merged and cleaned")
